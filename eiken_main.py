@@ -224,6 +224,23 @@ class Database:
         with self.connect() as conn:
             conn.execute("DELETE FROM word_details WHERE word_id=?", (word_id,))
 
+    def get_mastered_by_date(self, level: str) -> list:
+        """日別の習得済み単語数を (date_str, clean, recovered) のリストで返す。
+        clean    = ミスなしで習得（incorrect_count=0）
+        recovered = 苦手から習得（incorrect_count>0）
+        """
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT date(p.mastered_date) as day, "
+                "SUM(CASE WHEN p.incorrect_count=0 THEN 1 ELSE 0 END) as clean, "
+                "SUM(CASE WHEN p.incorrect_count>0 THEN 1 ELSE 0 END) as recovered "
+                "FROM progress p JOIN words w ON p.word_id=w.id "
+                "WHERE p.is_mastered=1 AND w.level=? "
+                "GROUP BY day ORDER BY day",
+                (level,),
+            ).fetchall()
+            return [(r["day"], r["clean"], r["recovered"]) for r in rows]
+
     def get_weak_words(self, level: str) -> list:
         with self.connect() as conn:
             rows = conn.execute(
@@ -391,10 +408,6 @@ def open_detail_popup(parent, word: str, word_id: int, db, colors: dict):
                              text_color=C_MUTED, wraplength=460, justify="left"
                              ).pack(anchor="w", pady=2)
 
-    def _delete():
-        db.delete_word_details(word_id)
-        popup.destroy()
-
     popup = ctk.CTkToplevel(parent)
     popup.title(f"詳細情報：{word}")
     popup.geometry("540x500")
@@ -403,20 +416,10 @@ def open_detail_popup(parent, word: str, word_id: int, db, colors: dict):
     scroll = ctk.CTkScrollableFrame(popup, fg_color=C_BG)
     scroll.pack(fill="both", expand=True, padx=16, pady=(16, 8))
 
-    btn_row = ctk.CTkFrame(popup, fg_color="transparent")
-    btn_row.pack(fill="x", padx=16, pady=(0, 12))
-    btn_row.columnconfigure(0, weight=1)
-    btn_row.columnconfigure(1, weight=1)
-
-    ctk.CTkButton(btn_row, text="この詳細情報を削除", height=36, corner_radius=8,
-                  font=ctk.CTkFont("Yu Gothic UI", 13),
-                  fg_color="#fff0f0", hover_color="#ffd5d5",
-                  text_color=C_DANGER, border_width=1, border_color="#ffbbbb",
-                  command=_delete).grid(row=0, column=0, sticky="ew", padx=(0, 6))
-    ctk.CTkButton(btn_row, text="閉じる", height=36, corner_radius=8,
+    ctk.CTkButton(popup, text="閉じる", height=36, corner_radius=8,
                   font=ctk.CTkFont("Yu Gothic UI", 13),
                   fg_color=C_PRIMARY, hover_color=C_PRIMARY_H,
-                  command=popup.destroy).grid(row=0, column=1, sticky="ew", padx=(6, 0))
+                  command=popup.destroy).pack(fill="x", padx=16, pady=(0, 12))
 
     # キャッシュ確認 → なければフェッチ
     cached = db.get_word_details(word_id)
@@ -762,22 +765,14 @@ class HomeFrame(ctk.CTkFrame):
                       font=F(13), fg_color=C_GREEN_BTN, hover_color=C_GREEN_H,
                       corner_radius=8, command=self._start_drill).pack(side="left", padx=12)
 
-        # ── List buttons ────────────────────────────────────
-        lb = ctk.CTkFrame(root, fg_color="transparent")
-        lb.pack(fill="x")
-        lb.columnconfigure((0, 1), weight=1)
-        ctk.CTkButton(
-            lb, text="⭐  習得済み単語一覧", height=42, corner_radius=10,
-            font=F(13), fg_color="#f0faf4", hover_color="#d8f0e2",
-            text_color=C_SUCCESS,
-            command=lambda: self.app.show_word_list("mastered"),
-        ).grid(row=0, column=0, sticky="ew", padx=(0, 6))
-        ctk.CTkButton(
-            lb, text="📉  苦手単語一覧", height=42, corner_radius=10,
-            font=F(13), fg_color="#fdf0f0", hover_color="#f8d8d8",
-            text_color=C_DANGER,
-            command=lambda: self.app.show_word_list("weak"),
-        ).grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        # ── Burn-up chart ────────────────────────────────────
+        bc = card(root)
+        bc.pack(fill="both", expand=True)
+        bc_inner = ctk.CTkFrame(bc, fg_color="transparent")
+        bc_inner.pack(fill="both", expand=True, padx=14, pady=10)
+        ctk.CTkLabel(bc_inner, text="バーンアップチャート（目標：100語）",
+                     font=F(12, True), text_color=C_TEXT).pack(anchor="w", pady=(0, 4))
+        self._build_burnup_chart(bc_inner)
 
         self._refresh()
 
@@ -805,6 +800,162 @@ class HomeFrame(ctk.CTkFrame):
                 text_color=C_PRIMARY,
                 state="normal" if all_done else "disabled",
             )
+
+        if hasattr(self, "_chart_canvas"):
+            self._draw_burnup(self._chart_canvas)
+
+    def _build_burnup_chart(self, parent):
+        import tkinter as tk
+        canvas = tk.Canvas(parent, bg=C_CARD, highlightthickness=0, height=180)
+        canvas.pack(fill="both", expand=True)
+        self._chart_canvas = canvas
+        canvas.bind("<Configure>", lambda _: self._draw_burnup(canvas))
+        canvas.after(100, lambda: self._draw_burnup(canvas))
+
+    def _draw_burnup(self, canvas):
+        from datetime import datetime, timedelta, date as date_cls
+
+        GOAL   = 100
+        COL_CLEAN = "#3b82f6"   # 青：ミスなし習得
+        COL_RECV  = "#f97316"   # オレンジ：苦手から習得
+        COL_FILL_C = "#bfdbfe"
+        COL_FILL_R = "#fed7aa"
+
+        level = self.app.current_level
+        canvas.delete("all")
+        w = canvas.winfo_width()
+        h = canvas.winfo_height()
+        if w < 20 or h < 20:
+            return
+
+        rows = self.app.db.get_mastered_by_date(level)
+        # rows = (date_str, clean, recovered)
+        daily_c = {r[0]: r[1] for r in rows}
+        daily_r = {r[0]: r[2] for r in rows}
+        today = date_cls.today()
+        all_dates = set(daily_c) | set(daily_r)
+        first_date = datetime.strptime(min(all_dates), "%Y-%m-%d").date() if all_dates else today
+
+        cum_c, cum_r = {}, {}
+        tc = tr = 0
+        d = first_date
+        while d <= today:
+            ds = d.strftime("%Y-%m-%d")
+            tc += daily_c.get(ds, 0)
+            tr += daily_r.get(ds, 0)
+            cum_c[ds] = tc
+            cum_r[ds] = tr
+            d += timedelta(days=1)
+
+        total_c = sum(r[1] for r in rows)
+        total_r = sum(r[2] for r in rows)
+        current  = total_c + total_r
+
+        ml, mr, mt, mb = 58, 44, 36, 52
+        pw = w - ml - mr
+        ph = h - mt - mb
+        y_max = GOAL * 1.1
+
+        def px(idx, n):
+            return ml + (idx / max(n - 1, 1)) * pw
+
+        def py(val):
+            return mt + ph - (val / y_max) * ph
+
+        canvas.create_rectangle(0, 0, w, h, fill=C_CARD, outline="")
+
+        # 水平グリッド
+        for v in [0, 25, 50, 75, 100]:
+            y = py(v)
+            canvas.create_line(ml, y, ml + pw, y, fill="#e2e8f0", width=1)
+            canvas.create_text(ml - 8, y, text=str(v),
+                               font=("Yu Gothic UI", 11), fill="#94a3b8", anchor="e")
+
+        # 軸
+        canvas.create_line(ml, mt, ml, mt + ph, fill="#cbd5e1", width=1)
+        canvas.create_line(ml, mt + ph, ml + pw, mt + ph, fill="#cbd5e1", width=1)
+
+        # 目標ライン（破線・緑）
+        y100 = py(GOAL)
+        seg = 9
+        x = ml
+        while x < ml + pw:
+            canvas.create_line(x, y100, min(x + seg, ml + pw), y100,
+                               fill=C_SUCCESS, width=2)
+            x += seg * 2
+        canvas.create_text(ml + pw + 6, y100, text="目標",
+                           font=("Yu Gothic UI", 11, "bold"), fill=C_SUCCESS, anchor="w")
+
+        if not cum_c and not cum_r:
+            canvas.create_text(ml + pw / 2, mt + ph / 2,
+                               text="まだ習得済み単語がありません",
+                               font=("Yu Gothic UI", 14), fill="#94a3b8")
+            return
+
+        dates = sorted(cum_c.keys())
+        n = len(dates)
+
+        def make_poly(cum_bottom, cum_top):
+            poly = [ml, py(cum_bottom.get(dates[0], 0))]
+            for i, ds in enumerate(dates):
+                poly.extend([px(i, n), py(cum_top.get(ds, 0))])
+            for i in range(n - 1, -1, -1):
+                poly.extend([px(i, n), py(cum_bottom.get(dates[i], 0))])
+            return poly
+
+        # 苦手から習得（オレンジ）の塗りつぶし面（clean の上に積む）
+        zero_dict = {ds: 0 for ds in dates}
+        total_dict = {ds: cum_c.get(ds, 0) + cum_r.get(ds, 0) for ds in dates}
+        canvas.create_polygon(make_poly(cum_c, total_dict), fill=COL_FILL_R, outline="")
+
+        # ミスなし習得（青）の塗りつぶし面（底から）
+        canvas.create_polygon(make_poly(zero_dict, cum_c), fill=COL_FILL_C, outline="")
+
+        # 折れ線：合計（青）
+        pts_total = [(px(i, n), py(total_dict[ds])) for i, ds in enumerate(dates)]
+        for i in range(len(pts_total) - 1):
+            canvas.create_line(pts_total[i][0], pts_total[i][1],
+                               pts_total[i+1][0], pts_total[i+1][1],
+                               fill=COL_RECV, width=2)
+
+        # 折れ線：ミスなし（青）
+        pts_c = [(px(i, n), py(cum_c[ds])) for i, ds in enumerate(dates)]
+        for i in range(len(pts_c) - 1):
+            canvas.create_line(pts_c[i][0], pts_c[i][1],
+                               pts_c[i+1][0], pts_c[i+1][1],
+                               fill=COL_CLEAN, width=2)
+
+        # データポイント（最後だけ）
+        for pts, col in [(pts_c, COL_CLEAN), (pts_total, COL_RECV)]:
+            lx, ly = pts[-1]
+            canvas.create_oval(lx - 4, ly - 4, lx + 4, ly + 4,
+                               fill=col, outline="white", width=2)
+
+        # 現在の習得数ラベル
+        lx, ly = pts_total[-1]
+        canvas.create_text(lx, ly - 16, text=f"計 {current}語",
+                           font=("Yu Gothic UI", 12, "bold"), fill=COL_RECV)
+
+        # X軸ラベル
+        step = max(1, n // 6)
+        shown = set()
+        for i in range(0, n, step):
+            canvas.create_text(px(i, n), mt + ph + 16, text=dates[i][5:],
+                               font=("Yu Gothic UI", 11), fill="#94a3b8")
+            shown.add(i)
+        if n - 1 not in shown:
+            canvas.create_text(px(n - 1, n), mt + ph + 16, text=dates[-1][5:],
+                               font=("Yu Gothic UI", 11), fill="#94a3b8")
+
+        # 凡例
+        lx0 = ml + 6
+        ly0 = mt + 10
+        canvas.create_rectangle(lx0, ly0, lx0 + 14, ly0 + 14, fill=COL_FILL_C, outline=COL_CLEAN)
+        canvas.create_text(lx0 + 18, ly0 + 7, text=f"初回習得  {total_c}語",
+                           font=("Yu Gothic UI", 11), fill=COL_CLEAN, anchor="w")
+        canvas.create_rectangle(lx0 + 120, ly0, lx0 + 134, ly0 + 14, fill=COL_FILL_R, outline=COL_RECV)
+        canvas.create_text(lx0 + 138, ly0 + 7, text=f"苦手から克服  {total_r}語",
+                           font=("Yu Gothic UI", 11), fill=COL_RECV, anchor="w")
 
     def _on_level_change(self):
         self.app.set_level(self._level_var.get())
