@@ -7,6 +7,9 @@ import json
 import random
 import re
 import sys
+import threading
+import urllib.request
+import urllib.parse
 from datetime import date
 from pathlib import Path
 
@@ -72,6 +75,12 @@ class Database:
                 CREATE TABLE IF NOT EXISTS app_state (
                     key   TEXT PRIMARY KEY,
                     value TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS word_details (
+                    word_id     INTEGER PRIMARY KEY,
+                    details_json TEXT NOT NULL,
+                    fetched_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (word_id) REFERENCES words(id)
                 );
             """)
 
@@ -197,10 +206,28 @@ class Database:
                 (word_id,),
             )
 
+    def get_word_details(self, word_id: int) -> dict | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT details_json FROM word_details WHERE word_id=?", (word_id,)
+            ).fetchone()
+            return json.loads(row["details_json"]) if row else None
+
+    def save_word_details(self, word_id: int, details: dict):
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO word_details (word_id, details_json) VALUES (?,?)",
+                (word_id, json.dumps(details, ensure_ascii=False)),
+            )
+
+    def delete_word_details(self, word_id: int):
+        with self.connect() as conn:
+            conn.execute("DELETE FROM word_details WHERE word_id=?", (word_id,))
+
     def get_weak_words(self, level: str) -> list:
         with self.connect() as conn:
             rows = conn.execute(
-                "SELECT w.word, w.meanings, w.batch_number, p.incorrect_count, p.streak "
+                "SELECT w.id, w.word, w.meanings, w.batch_number, p.incorrect_count, p.streak "
                 "FROM words w JOIN progress p ON w.id=p.word_id "
                 "WHERE w.level=? AND p.incorrect_count>0 AND p.is_mastered=0 "
                 "ORDER BY p.incorrect_count DESC",
@@ -246,6 +273,142 @@ class Database:
     def complete_session(self, session_id: int):
         with self.connect() as conn:
             conn.execute("UPDATE sessions SET is_completed=1 WHERE id=?", (session_id,))
+
+
+# ============================================================
+# Google Translate detail fetcher
+# ============================================================
+
+def fetch_word_details(word: str) -> dict:
+    """Google翻訳の非公式APIから単語の詳細情報を取得する（urllib標準ライブラリ使用）。"""
+    params = urllib.parse.urlencode([
+        ("client", "gtx"), ("sl", "en"), ("tl", "ja"),
+        ("dt", "t"), ("dt", "bd"), ("dt", "ex"), ("q", word),
+    ])
+    url = f"https://translate.googleapis.com/translate_a/single?{params}"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+
+    result: dict = {}
+
+    # メイン翻訳
+    if data[0]:
+        result["translation"] = "".join(item[0] for item in data[0] if item[0])
+
+    # 品詞別の意味
+    if len(data) > 1 and data[1]:
+        pos_entries = []
+        for item in data[1]:
+            if len(item) >= 2 and item[1]:
+                pos_entries.append({"pos": item[0], "words": list(item[1])[:6]})
+        if pos_entries:
+            result["pos_definitions"] = pos_entries
+
+    # 用例（HTMLタグを除去）
+    if len(data) > 5 and data[5]:
+        examples = []
+        for ex_group in data[5]:
+            if ex_group and len(ex_group) > 1:
+                for ex in ex_group[1][:2]:
+                    if ex and ex[0]:
+                        examples.append(re.sub(r"<[^>]+>", "", ex[0]))
+            if len(examples) >= 4:
+                break
+        if examples:
+            result["examples"] = examples
+
+    return result
+
+
+def open_detail_popup(parent, word: str, word_id: int, db, colors: dict):
+    """単語詳細ポップアップを開く共通関数。"""
+    C_BG      = colors["C_BG"]
+    C_TEXT    = colors["C_TEXT"]
+    C_PRIMARY = colors["C_PRIMARY"]
+    C_PRIMARY_H = colors["C_PRIMARY_H"]
+    C_MUTED   = colors["C_MUTED"]
+    C_DANGER  = colors["C_DANGER"]
+
+    def _render(details: dict):
+        for w in scroll.winfo_children():
+            w.destroy()
+        ctk.CTkLabel(scroll, text=word,
+                     font=ctk.CTkFont("Yu Gothic UI", 22, "bold"),
+                     text_color=C_TEXT).pack(anchor="w")
+        if "translation" in details:
+            ctk.CTkLabel(scroll, text=f"翻訳：{details['translation']}",
+                         font=ctk.CTkFont("Yu Gothic UI", 14),
+                         text_color=C_PRIMARY).pack(anchor="w", pady=(8, 0))
+        if "pos_definitions" in details:
+            ctk.CTkLabel(scroll, text="品詞別の意味",
+                         font=ctk.CTkFont("Yu Gothic UI", 13, "bold"),
+                         text_color=C_TEXT).pack(anchor="w", pady=(12, 4))
+            for entry in details["pos_definitions"]:
+                txt = f"【{entry['pos']}】 " + "、".join(entry["words"])
+                ctk.CTkLabel(scroll, text=txt,
+                             font=ctk.CTkFont("Yu Gothic UI", 13),
+                             text_color=C_TEXT, wraplength=460, justify="left"
+                             ).pack(anchor="w", pady=2)
+        if "examples" in details:
+            ctk.CTkLabel(scroll, text="用例",
+                         font=ctk.CTkFont("Yu Gothic UI", 13, "bold"),
+                         text_color=C_TEXT).pack(anchor="w", pady=(12, 4))
+            for ex in details["examples"]:
+                ctk.CTkLabel(scroll, text=f"• {ex}",
+                             font=ctk.CTkFont("Yu Gothic UI", 12),
+                             text_color=C_MUTED, wraplength=460, justify="left"
+                             ).pack(anchor="w", pady=2)
+
+    def _delete():
+        db.delete_word_details(word_id)
+        popup.destroy()
+
+    popup = ctk.CTkToplevel(parent)
+    popup.title(f"詳細情報：{word}")
+    popup.geometry("540x500")
+    popup.grab_set()
+
+    scroll = ctk.CTkScrollableFrame(popup, fg_color=C_BG)
+    scroll.pack(fill="both", expand=True, padx=16, pady=(16, 8))
+
+    btn_row = ctk.CTkFrame(popup, fg_color="transparent")
+    btn_row.pack(fill="x", padx=16, pady=(0, 12))
+    btn_row.columnconfigure(0, weight=1)
+    btn_row.columnconfigure(1, weight=1)
+
+    ctk.CTkButton(btn_row, text="この詳細情報を削除", height=36, corner_radius=8,
+                  font=ctk.CTkFont("Yu Gothic UI", 13),
+                  fg_color="#fff0f0", hover_color="#ffd5d5",
+                  text_color=C_DANGER, border_width=1, border_color="#ffbbbb",
+                  command=_delete).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+    ctk.CTkButton(btn_row, text="閉じる", height=36, corner_radius=8,
+                  font=ctk.CTkFont("Yu Gothic UI", 13),
+                  fg_color=C_PRIMARY, hover_color=C_PRIMARY_H,
+                  command=popup.destroy).grid(row=0, column=1, sticky="ew", padx=(6, 0))
+
+    # キャッシュ確認 → なければフェッチ
+    cached = db.get_word_details(word_id)
+    if cached:
+        _render(cached)
+        return
+
+    status_lbl = ctk.CTkLabel(scroll, text="Google翻訳から情報を取得中...",
+                              font=ctk.CTkFont("Yu Gothic UI", 14),
+                              text_color=C_MUTED)
+    status_lbl.pack(pady=40)
+
+    def _fetch():
+        try:
+            details = fetch_word_details(word)
+            db.save_word_details(word_id, details)
+            popup.after(0, lambda: _render(details))
+        except Exception as e:
+            popup.after(0, lambda: status_lbl.configure(
+                text=f"取得に失敗しました。\nネットワーク接続を確認してください。\n({e})",
+                text_color=C_DANGER))
+
+    threading.Thread(target=_fetch, daemon=True).start()
 
 
 # ============================================================
@@ -710,6 +873,16 @@ class QuizFrame(ctk.CTkFrame):
         self._dont_know_btn.pack(fill="x", pady=(8, 0))
         self._dont_know_btn.pack_forget()
 
+        # ── さらに詳しく button ───────────────────────────────
+        self._detail_btn = ctk.CTkButton(
+            root, text="さらに詳しく表示", height=38, corner_radius=8,
+            font=F(13), fg_color="#f0f4ff", hover_color="#dce8ff",
+            text_color=C_PRIMARY, border_width=1, border_color=C_PRIMARY_L,
+            command=self._show_details,
+        )
+        self._detail_btn.pack(fill="x", pady=(4, 0))
+        self._detail_btn.pack_forget()
+
         # ── Next button ──────────────────────────────────────
         self._next_btn = ctk.CTkButton(
             root, text="次の問題 →", height=44, corner_radius=8,
@@ -812,6 +985,7 @@ class QuizFrame(ctk.CTkFrame):
                 btn.grid_remove()
 
         self._dont_know_btn.pack(fill="x", pady=(8, 0))
+        self._detail_btn.pack_forget()
         self._next_btn.pack_forget()
 
     def _answer(self, idx: int):
@@ -845,6 +1019,8 @@ class QuizFrame(ctk.CTkFrame):
         else:
             self._feedback_lbl.configure(
                 text=f"✗ 不正解　正解：{self.correct_meaning}", text_color=C_DANGER)
+            self._detail_btn.configure(text="さらに詳しく表示", state="normal")
+            self._detail_btn.pack(fill="x", pady=(4, 0))
 
         self._next_btn.pack(fill="x", pady=(8, 0))
 
@@ -872,7 +1048,17 @@ class QuizFrame(ctk.CTkFrame):
         self._feedback_lbl.configure(
             text=f"✗ わからない　正解：{meaning_str}", text_color=C_WARN)
 
+        self._detail_btn.configure(text="さらに詳しく表示", state="normal")
+        self._detail_btn.pack(fill="x", pady=(4, 0))
         self._next_btn.pack(fill="x", pady=(8, 0))
+
+    def _show_details(self):
+        word = self._word_lbl.cget("text")
+        open_detail_popup(self, word, self.current_word_id, self.app.db, {
+            "C_BG": C_BG, "C_TEXT": C_TEXT, "C_PRIMARY": C_PRIMARY,
+            "C_PRIMARY_H": C_PRIMARY_H, "C_PRIMARY_L": C_PRIMARY_L,
+            "C_MUTED": C_MUTED, "C_DANGER": C_DANGER,
+        })
 
     def _next_question(self):
         self.current_q += 1
@@ -951,13 +1137,13 @@ class WordListFrame(ctk.CTkFrame):
             self._words  = self.app.db.get_mastered_words(level)
             self._columns= ["word", "meanings", "batch_number", "incorrect_count", "mastered_date"]
             headers      = ["単語 / 連語", "意味", "バッチ", "間違い", "習得日", "操作"]
-            self._col_w  = [150, 260, 56, 56, 96, 88]
+            self._col_w  = [140, 230, 50, 50, 86, 88]
         else:
             title        = f"英検{level}　苦手単語一覧"
             self._words  = self.app.db.get_weak_words(level)
             self._columns= ["word", "meanings", "batch_number", "incorrect_count", "streak"]
-            headers      = ["単語 / 連語", "意味", "バッチ", "間違い", "連続正解"]
-            self._col_w  = [170, 300, 60, 60, 80]
+            headers      = ["単語 / 連語", "意味", "バッチ", "間違い", "連続正解", "詳細"]
+            self._col_w  = [150, 250, 55, 55, 70, 72]
 
         root = ctk.CTkFrame(self, fg_color="transparent")
         root.pack(fill="both", expand=True, padx=24, pady=18)
@@ -993,6 +1179,10 @@ class WordListFrame(ctk.CTkFrame):
             ctk.CTkLabel(col_hdr, text="操作", width=88, height=30,
                          font=F(12), text_color=C_MUTED,
                          anchor="center").pack(side="left", padx=1)
+        else:
+            ctk.CTkLabel(col_hdr, text="詳細", width=72, height=30,
+                         font=F(12), text_color=C_MUTED,
+                         anchor="center").pack(side="left", padx=1)
 
         # ── Scrollable rows ──────────────────────────────────
         self._scroll = ctk.CTkScrollableFrame(root, fg_color="transparent")
@@ -1023,19 +1213,41 @@ class WordListFrame(ctk.CTkFrame):
                     font=F(12), text_color=C_TEXT,
                 ).pack(side="left", padx=8, pady=6)
 
+            word_id = row["id"]
             if self.list_type == "mastered":
-                word_id = row["id"]
+                btn_frame = ctk.CTkFrame(rf, fg_color="transparent")
+                btn_frame.pack(side="left", padx=4, pady=4)
                 ctk.CTkButton(
-                    rf, text="苦手に移す", width=88, height=28,
+                    btn_frame, text="苦手に移す", width=84, height=26,
                     font=F(11), fg_color=C_DANGER_L, hover_color="#f8d8d8",
                     text_color=C_DANGER, corner_radius=6,
                     command=lambda wid=word_id: self._unmaster(wid),
+                ).pack(pady=(0, 2))
+                ctk.CTkButton(
+                    btn_frame, text="詳細", width=84, height=26,
+                    font=F(11), fg_color="#f0f4ff", hover_color="#dce8ff",
+                    text_color=C_PRIMARY, corner_radius=6,
+                    command=lambda wid=word_id, wt=row["word"]: self._open_detail(wid, wt),
+                ).pack()
+            else:
+                ctk.CTkButton(
+                    rf, text="詳細", width=68, height=28,
+                    font=F(11), fg_color="#f0f4ff", hover_color="#dce8ff",
+                    text_color=C_PRIMARY, corner_radius=6,
+                    command=lambda wid=word_id, wt=row["word"]: self._open_detail(wid, wt),
                 ).pack(side="left", padx=6, pady=6)
 
     def _unmaster(self, word_id: int):
         self.app.db.unmaster_word(word_id)
         self._words = self.app.db.get_mastered_words(self.app.current_level)
         self._render_rows()
+
+    def _open_detail(self, word_id: int, word: str):
+        open_detail_popup(self, word, word_id, self.app.db, {
+            "C_BG": C_BG, "C_TEXT": C_TEXT, "C_PRIMARY": C_PRIMARY,
+            "C_PRIMARY_H": C_PRIMARY_H, "C_PRIMARY_L": C_PRIMARY_L,
+            "C_MUTED": C_MUTED, "C_DANGER": C_DANGER,
+        })
 
     def _sort(self, col: str):
         if self.sort_col == col:
