@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python ステップアップ編</title>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #1a1d27;
+    --card: #22263a;
+    --accent: #34d399;
+    --accent2: #059669;
+    --green: #3ecf8e;
+    --red: #f06a6a;
+    --yellow: #f5c842;
+    --text: #e2e8f0;
+    --muted: #8892a4;
+    --border: #2d3248;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+
+  #sidebar {
+    width: 260px; min-width: 260px; background: var(--panel);
+    border-right: 1px solid var(--border); overflow-y: auto;
+    display: flex; flex-direction: column;
+  }
+  #sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  #sidebar-header h2 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  #sidebar-header a { font-size: 12px; color: var(--accent); text-decoration: none; display: block; margin-top: 4px; }
+  #sidebar-header a:hover { text-decoration: underline; }
+  .chapter { padding: 8px 16px 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 8px; }
+  .lesson-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; cursor: pointer; transition: background 0.15s;
+    border: none; background: none; color: var(--text); width: 100%; text-align: left; font-size: 13.5px;
+  }
+  .lesson-btn:hover { background: var(--card); }
+  .lesson-btn.active { background: rgba(52,211,153,0.12); color: var(--accent); }
+  .lesson-btn .icon { font-size: 16px; width: 20px; text-align: center; }
+  .lesson-btn .check { margin-left: auto; color: var(--green); font-size: 14px; }
+  .progress-bar { height: 3px; background: var(--border); }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.4s; }
+
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #topbar {
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; background: var(--panel);
+  }
+  #topbar h1 { font-size: 18px; font-weight: 600; }
+  #topbar .badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+  .badge-num { background: rgba(52,211,153,0.15); color: var(--accent); }
+  .badge-lv  { background: rgba(5,150,105,0.15); color: #6ee7b7; }
+  #topbar .pts { margin-left: auto; color: var(--yellow); font-weight: 700; font-size: 14px; }
+
+  #content-area { flex: 1; display: flex; overflow: hidden; }
+
+  #lesson-panel { width: 50%; border-right: 1px solid var(--border); overflow-y: auto; padding: 28px 28px 40px; }
+  #lesson-panel h2 { font-size: 22px; margin-bottom: 16px; }
+  #lesson-panel p { line-height: 1.75; color: #c8d0e0; margin-bottom: 14px; font-size: 14.5px; }
+  #lesson-panel h3 { margin: 20px 0 10px; font-size: 16px; color: var(--accent); }
+  #lesson-panel .highlight {
+    background: var(--card); border-left: 3px solid var(--accent);
+    padding: 14px 16px; border-radius: 0 8px 8px 0; margin: 14px 0;
+    font-size: 13.5px; line-height: 1.7; color: #d4dff7; font-family: 'Consolas', monospace;
+  }
+  #lesson-panel .tip {
+    background: rgba(52,211,153,0.07); border: 1px solid rgba(52,211,153,0.25);
+    border-radius: 8px; padding: 12px 16px; margin: 14px 0; font-size: 13.5px;
+  }
+  #lesson-panel .tip::before { content: "💡 "; }
+  #lesson-panel .warning {
+    background: rgba(245,200,66,0.07); border: 1px solid rgba(245,200,66,0.25);
+    border-radius: 8px; padding: 12px 16px; margin: 14px 0; font-size: 13.5px;
+  }
+  #lesson-panel .warning::before { content: "⚠️ "; }
+  #lesson-panel .challenge {
+    background: rgba(52,211,153,0.07); border: 1px solid rgba(52,211,153,0.25);
+    border-radius: 8px; padding: 12px 16px; margin: 14px 0; font-size: 13.5px;
+  }
+  #lesson-panel .challenge::before { content: "🎯 チャレンジ："; font-weight: 700; color: var(--accent); }
+
+  #code-panel { width: 50%; display: flex; flex-direction: column; background: var(--bg); }
+  #code-toolbar {
+    padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  #code-toolbar span { font-size: 13px; color: var(--muted); }
+  #run-btn {
+    margin-left: auto; background: var(--green); color: #000; border: none;
+    padding: 7px 20px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;
+  }
+  #run-btn:hover { opacity: 0.85; }
+  #run-btn:disabled { opacity: 0.5; cursor: default; }
+  #reset-btn {
+    background: var(--card); color: var(--muted); border: 1px solid var(--border);
+    padding: 7px 14px; border-radius: 6px; font-size: 13px; cursor: pointer;
+  }
+  #code-editor {
+    flex: 1; background: #0d1117; color: #e6edf3; font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 14px; line-height: 1.6; padding: 16px; border: none; outline: none; resize: none; tab-size: 4;
+  }
+  #output-area { height: 160px; border-top: 1px solid var(--border); display: flex; flex-direction: column; }
+  #output-label {
+    padding: 8px 16px; font-size: 12px; color: var(--muted); background: var(--panel);
+    border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center;
+  }
+  #clear-btn { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; }
+  #output {
+    flex: 1; overflow-y: auto; padding: 12px 16px; font-family: 'Consolas', monospace;
+    font-size: 13px; line-height: 1.6; background: #080b10; white-space: pre-wrap;
+  }
+  #output .out-ok { color: #7ee8a2; }
+  #output .out-err { color: var(--red); }
+  #output .out-hint { color: var(--muted); font-style: italic; }
+
+  #quiz-area { display: none; margin-top: 24px; }
+  #quiz-area h3 { color: var(--yellow); margin-bottom: 12px; font-size: 16px; }
+  .quiz-q { font-size: 14.5px; margin-bottom: 14px; line-height: 1.6; }
+  .quiz-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .quiz-opt {
+    background: var(--card); border: 1px solid var(--border);
+    padding: 10px 14px; border-radius: 8px; cursor: pointer;
+    font-size: 13.5px; transition: all 0.15s; text-align: left; color: var(--text); font-family: inherit;
+  }
+  .quiz-opt:hover { border-color: var(--accent); background: rgba(52,211,153,0.08); }
+  .quiz-opt.correct { background: rgba(62,207,142,0.15); border-color: var(--green); color: var(--green); }
+  .quiz-opt.wrong { background: rgba(240,106,106,0.15); border-color: var(--red); color: var(--red); }
+  #quiz-feedback { font-size: 14px; padding: 10px 14px; border-radius: 8px; margin-top: 8px; display: none; line-height: 1.6; }
+  #quiz-feedback.ok { background: rgba(62,207,142,0.1); color: var(--green); border: 1px solid rgba(62,207,142,0.3); }
+  #quiz-feedback.ng { background: rgba(240,106,106,0.1); color: var(--red); border: 1px solid rgba(240,106,106,0.3); }
+
+  #nav-buttons { padding: 16px 28px; border-top: 1px solid var(--border); display: flex; gap: 12px; background: var(--panel); }
+  .nav-btn { padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.15s; }
+  #prev-btn { background: var(--card); color: var(--muted); border: 1px solid var(--border); }
+  #next-btn { background: var(--accent); color: #000; margin-left: auto; }
+  #prev-btn:hover, #next-btn:hover { opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  <div id="sidebar-header">
+    <h2>ステップアップ編</h2>
+    <a href="python_learning.html">← 入門編に戻る</a>
+    <a href="python_learning_3.html" style="color:#f97316">上級編へ →</a>
+  </div>
+  <div id="lesson-list"></div>
+</div>
+
+<div id="main">
+  <div id="topbar">
+    <h1 id="lesson-title">Python ステップアップ</h1>
+    <span class="badge badge-num" id="lesson-badge">レッスン 1</span>
+    <span class="badge badge-lv" id="level-badge">初中級</span>
+    <span class="pts" id="pts-display">⭐ 0 pt</span>
+  </div>
+  <div id="content-area">
+    <div id="lesson-panel">
+      <div id="lesson-content"></div>
+      <div id="quiz-area">
+        <h3>✏️ 理解度チェック</h3>
+        <div class="quiz-q" id="quiz-question"></div>
+        <div class="quiz-options" id="quiz-options"></div>
+        <div id="quiz-feedback"></div>
+      </div>
+    </div>
+    <div id="code-panel">
+      <div id="code-toolbar">
+        <span>📝 コードを書いて実行しよう</span>
+        <button id="reset-btn" onclick="resetCode()">リセット</button>
+        <button id="run-btn" onclick="runCode()">▶ 実行</button>
+      </div>
+      <textarea id="code-editor" spellcheck="false"></textarea>
+      <div id="output-area">
+        <div id="output-label">
+          出力結果
+          <button id="clear-btn" onclick="clearOutput()">クリア</button>
+        </div>
+        <div id="output"></div>
+      </div>
+    </div>
+  </div>
+  <div id="nav-buttons">
+    <button class="nav-btn" id="prev-btn" onclick="prevLesson()">← 前へ</button>
+    <button class="nav-btn" id="next-btn" onclick="nextLesson()">次へ →</button>
+  </div>
+</div>
+
+<script>
+const lessons = [
+
+  // ===== 1. スライス =====
+  {
+    chapter: "文字列・リストをもっと使う",
+    title: "スライスで部分取り出し",
+    icon: "✂️", level: "初中級",
+    content: `
+<h2>スライスで部分を取り出そう</h2>
+<p>入門編でインデックス（<code>items[0]</code>）を学びました。<strong>スライス</strong>を使うと「〇番目から△番目まで」をまとめて取り出せます。</p>
+<h3>スライスの書き方</h3>
+<div class="highlight">リスト[開始:終了:ステップ]</div>
+<p>具体的な例：</p>
+<div class="highlight">nums = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+nums[2:5]    # → [2, 3, 4]  ※終了の5は含まない
+nums[:3]     # → [0, 1, 2]  先頭から3つ
+nums[7:]     # → [7, 8, 9]  7番目から最後まで
+nums[-3:]    # → [7, 8, 9]  後ろから3つ
+nums[::2]    # → [0, 2, 4, 6, 8]  1つおき
+nums[::-1]   # → [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]  逆順</div>
+<h3>文字列にも使える</h3>
+<div class="highlight">text = "Hello, Python!"
+text[7:]      # → "Python!"
+text[:5]      # → "Hello"
+text[::-1]    # → "!nohtyP ,olleH"  逆順</div>
+<div class="tip">スライスは元のリスト・文字列を変更しません。新しいリスト・文字列を返します。</div>
+<div class="challenge">右のコードを実行して結果を確認したら、text の内容を自分の名前に変えてみよう！</div>
+    `,
+    code: `# リストのスライス
+nums = [10, 20, 30, 40, 50, 60, 70, 80, 90]
+
+print(nums[1:4])   # 20, 30, 40
+print(nums[:3])    # 先頭3つ
+print(nums[-3:])   # 末尾3つ
+print(nums[::2])   # 1つおき
+print(nums[::-1])  # 逆順
+
+# 文字列のスライス
+text = "Hello, Python!"
+print(text[7:13])  # Python
+print(text[:5])    # Hello
+print(text[::-1])  # 逆順
+
+# 実用例：先頭1文字を大文字、残りを小文字
+word = "pYTHON"
+fixed = word[0].upper() + word[1:].lower()
+print(fixed)  # Python`,
+    quiz: {
+      q: "items = [0,1,2,3,4,5] のとき items[1:4] の結果は？",
+      opts: ["[1, 2, 3, 4]", "[1, 2, 3]", "[0, 1, 2, 3]", "[2, 3, 4]"],
+      ans: 1,
+      explanation: "正解！ スライスは開始インデックスを含み、終了インデックスは含みません。1から始まり4の手前（3）まで → [1, 2, 3] です。"
+    }
+  },
+
+  // ===== 2. タプルとセット =====
+  {
+    chapter: "文字列・リストをもっと使う",
+    title: "タプルと集合（set）",
+    icon: "🔵", level: "初中級",
+    content: `
+<h2>タプルと集合（set）を知ろう</h2>
+<p>リストに似ているけど用途が違うデータ型を2つ学びます。</p>
+<h3>タプル（tuple）：変更できないリスト</h3>
+<div class="highlight">point = (3, 5)       # () で作る
+colors = ("赤", "青", "緑")
+
+print(point[0])      # 3
+print(len(colors))   # 3
+
+# タプルは変更不可
+# point[0] = 10  ← エラーになる！</div>
+<p>タプルは「変えてはいけない値のセット」に使います。座標・RGB値・設定値などに向いています。</p>
+<h3>アンパック（タプルを分解）</h3>
+<div class="highlight">x, y = (10, 20)   # x=10, y=20 に分解
+a, b, c = "ABC"   # 文字列も分解できる</div>
+<h3>集合（set）：重複なし・順序なし</h3>
+<div class="highlight">fruits = {"りんご", "バナナ", "りんご", "みかん"}
+print(fruits)  # りんごが1つになる
+
+# 集合の演算
+a = {1, 2, 3, 4}
+b = {3, 4, 5, 6}
+print(a & b)  # 積集合（共通）: {3, 4}
+print(a | b)  # 和集合（全体）: {1,2,3,4,5,6}
+print(a - b)  # 差集合: {1, 2}</div>
+<div class="tip">リストの重複を消したいときは set() が便利！ list(set(lst)) で重複除去ができます。</div>
+    `,
+    code: `# タプル
+point = (10, 20)
+x, y = point       # アンパック
+print(f"x={x}, y={y}")
+
+# 複数の値を返す関数（実はタプルを返している）
+def min_max(lst):
+    return min(lst), max(lst)
+
+lo, hi = min_max([3, 1, 4, 1, 5, 9, 2, 6])
+print(f"最小={lo}, 最大={hi}")
+
+# 集合（set）
+nums = [1, 2, 2, 3, 3, 3, 4, 4, 4, 4]
+unique = set(nums)
+print("重複なし:", unique)
+print("種類数:", len(unique))
+
+# 集合の演算
+a = {1, 2, 3, 4, 5}
+b = {4, 5, 6, 7, 8}
+print("共通:", a & b)
+print("全体:", a | b)
+print("aのみ:", a - b)
+
+# 文字列から重複文字を除去
+text = "mississippi"
+print("ユニーク文字:", sorted(set(text)))`,
+    quiz: {
+      q: "set([1, 2, 2, 3, 3, 3]) の結果は？",
+      opts: ["{1, 2, 2, 3, 3, 3}", "{1, 2, 3}", "[1, 2, 3]", "(1, 2, 3)"],
+      ans: 1,
+      explanation: "正解！ set は重複を自動で取り除くので {1, 2, 3} になります。set は {} で囲まれた順序なしの集合です。"
+    }
+  },
+
+  // ===== 3. リストの便利な操作 =====
+  {
+    chapter: "文字列・リストをもっと使う",
+    title: "リストの便利な操作",
+    icon: "📋", level: "初中級",
+    content: `
+<h2>リストをもっと便利に使おう</h2>
+<p>入門編でリストの基本を学びました。ここでは実際によく使う便利な機能を学びます。</p>
+<h3>sorted()：元のリストを変えずにソート</h3>
+<div class="highlight">nums = [3, 1, 4, 1, 5, 9, 2, 6]
+asc  = sorted(nums)           # 昇順
+desc = sorted(nums, reverse=True)  # 降順
+
+# 文字列のリスト
+words = ["banana", "apple", "cherry"]
+by_len = sorted(words, key=len)  # 文字数順</div>
+<h3>enumerate()：インデックスと値を同時に取得</h3>
+<div class="highlight">fruits = ["りんご", "バナナ", "みかん"]
+for i, fruit in enumerate(fruits):
+    print(f"{i+1}番目: {fruit}")</div>
+<h3>zip()：複数のリストを組み合わせる</h3>
+<div class="highlight">names = ["太郎", "花子", "次郎"]
+scores = [85, 92, 78]
+for name, score in zip(names, scores):
+    print(f"{name}: {score}点")</div>
+<h3>その他の便利な関数</h3>
+<div class="highlight">sum([1,2,3,4,5])   # 合計: 15
+max([3,1,4,1,5])   # 最大: 5
+min([3,1,4,1,5])   # 最小: 1
+"," .join(["a","b","c"])  # "a,b,c"</div>
+    `,
+    code: `# sorted：元を変えずにソート
+scores = [85, 92, 78, 96, 61, 88]
+print("昇順:", sorted(scores))
+print("降順:", sorted(scores, reverse=True))
+print("元のまま:", scores)  # 変わっていない
+
+# enumerate：番号付きループ
+menu = ["ハンバーガー", "チーズバーガー", "フライドポテト", "コーラ"]
+print("\n--- メニュー ---")
+for i, item in enumerate(menu, start=1):
+    print(f"  {i}. {item}")
+
+# zip：複数リストを組み合わせる
+names  = ["太郎", "花子", "次郎"]
+scores = [85, 92, 78]
+grades = ["B", "A", "C"]
+
+print("\n--- 成績表 ---")
+for name, score, grade in zip(names, scores, grades):
+    print(f"  {name}: {score}点 ({grade})")
+
+# 合計・平均
+print(f"\n平均: {sum(scores) / len(scores):.1f}点")`,
+    quiz: {
+      q: "enumerate(['a','b','c'], start=1) でループすると最初のiとvは？",
+      opts: ["i=0, v='a'", "i=1, v='a'", "i=1, v='b'", "i=0, v='b'"],
+      ans: 1,
+      explanation: "正解！ start=1 を指定するとインデックスが1から始まります。最初は i=1, v='a' になります。"
+    }
+  },
+
+  // ===== 4. 辞書の応用 =====
+  {
+    chapter: "文字列・リストをもっと使う",
+    title: "辞書の応用",
+    icon: "📖", level: "初中級",
+    content: `
+<h2>辞書をもっと使いこなそう</h2>
+<p>入門編で辞書の基本を学びました。実際のプログラムでよく使うパターンを覚えましょう。</p>
+<h3>get()：安全に値を取り出す</h3>
+<div class="highlight">person = {"name": "太郎", "age": 20}
+
+# KeyError が起きない
+print(person.get("age"))        # 20
+print(person.get("email"))      # None
+print(person.get("email", "未設定"))  # デフォルト値</div>
+<h3>辞書を更新する</h3>
+<div class="highlight">d1 = {"a": 1, "b": 2}
+d2 = {"b": 99, "c": 3}
+d1.update(d2)   # d2 の内容で d1 を更新
+# → {"a": 1, "b": 99, "c": 3}</div>
+<h3>辞書で集計する</h3>
+<div class="highlight">words = ["apple", "banana", "apple", "cherry", "banana", "apple"]
+count = {}
+for word in words:
+    count[word] = count.get(word, 0) + 1
+# → {"apple": 3, "banana": 2, "cherry": 1}</div>
+<div class="tip">辞書の .get(key, デフォルト) を使うと、キーが存在しないときのエラーを防げます。集計処理でとても便利です！</div>
+<div class="challenge">文章の中に出てくる各文字の個数を辞書で数えてみよう。</div>
+    `,
+    code: `# get() で安全にアクセス
+user = {"name": "花子", "age": 25}
+print(user.get("name"))
+print(user.get("email", "メールなし"))
+
+# 辞書で集計
+words = "the quick brown fox jumps over the lazy dog the fox".split()
+counter = {}
+for word in words:
+    counter[word] = counter.get(word, 0) + 1
+
+# 出現回数の多い順に表示
+print("\n--- 単語の出現回数 ---")
+for word, count in sorted(counter.items(), key=lambda x: x[1], reverse=True):
+    print(f"  {word}: {count}回")
+
+# 辞書のリストから集計
+sales = [
+    {"item": "りんご", "amount": 500},
+    {"item": "バナナ", "amount": 300},
+    {"item": "りんご", "amount": 200},
+    {"item": "みかん", "amount": 400},
+    {"item": "バナナ", "amount": 600},
+]
+total = {}
+for s in sales:
+    total[s["item"]] = total.get(s["item"], 0) + s["amount"]
+
+print("\n--- 商品別売上 ---")
+for item, amount in total.items():
+    print(f"  {item}: {amount}円")`,
+    quiz: {
+      q: 'd = {"a": 1} のとき d.get("b", 0) の結果は？',
+      opts: ["エラー", "None", "0", '"b"'],
+      ans: 2,
+      explanation: "正解！ get() はキーが存在しない場合に第2引数（デフォルト値）を返します。ここでは 0 が返ります。"
+    }
+  },
+
+  // ===== 5. ネストしたデータ =====
+  {
+    chapter: "文字列・リストをもっと使う",
+    title: "ネストしたデータ構造",
+    icon: "🗂️", level: "初中級",
+    content: `
+<h2>辞書とリストを組み合わせる</h2>
+<p>実際のデータはリストの中に辞書があったり、辞書の値がリストだったりします。これを<strong>ネスト（入れ子）</strong>と呼びます。</p>
+<h3>辞書のリスト（よく使う！）</h3>
+<div class="highlight">students = [
+    {"name": "太郎", "score": 85, "grade": "B"},
+    {"name": "花子", "score": 92, "grade": "A"},
+    {"name": "次郎", "score": 78, "grade": "C"},
+]
+
+for s in students:
+    print(s["name"], s["score"])</div>
+<h3>辞書の値がリスト</h3>
+<div class="highlight">class_data = {
+    "A組": ["太郎", "花子"],
+    "B組": ["次郎", "桃子", "健太"],
+}
+
+for cls, members in class_data.items():
+    print(f"{cls}: {', '.join(members)}")</div>
+<h3>深い階層へのアクセス</h3>
+<div class="highlight">data = {"user": {"name": "太郎", "address": {"city": "東京"}}}
+city = data["user"]["address"]["city"]  # "東京"</div>
+<div class="tip">実際のWebAPIやJSONのデータはほぼこの形です。慣れておくと後でとても役立ちます！</div>
+    `,
+    code: `# 商品リスト（辞書のリスト）
+products = [
+    {"name": "ノートPC",  "price": 98000, "stock": 5},
+    {"name": "マウス",    "price": 2500,  "stock": 20},
+    {"name": "キーボード","price": 8000,  "stock": 15},
+    {"name": "モニター",  "price": 45000, "stock": 3},
+]
+
+# 一覧表示
+print("=== 商品一覧 ===")
+for p in products:
+    print(f"  {p['name']:12} ¥{p['price']:>8,}  在庫:{p['stock']}個")
+
+# 在庫が10個以下の商品を抽出
+print("\n=== 要発注 ===")
+for p in products:
+    if p["stock"] <= 5:
+        print(f"  ⚠️  {p['name']}（残り{p['stock']}個）")
+
+# 価格の安い順に並べ替え
+print("\n=== 価格順 ===")
+for p in sorted(products, key=lambda x: x["price"]):
+    print(f"  {p['name']}: ¥{p['price']:,}")`,
+    quiz: {
+      q: 'data = [{"x": 1}, {"x": 2}] のとき data[1]["x"] の値は？',
+      opts: ["1", "2", "エラー", '{"x": 2}'],
+      ans: 1,
+      explanation: "正解！ data[1] でリストの2番目の辞書（{\"x\": 2}）を取り出し、さらに [\"x\"] でその値 2 を取り出します。"
+    }
+  },
+
+  // ===== 6. 関数の応用 =====
+  {
+    chapter: "関数をもっと使いこなす",
+    title: "関数の応用",
+    icon: "⚙️", level: "初中級",
+    content: `
+<h2>関数をもっと便利に使おう</h2>
+<p>入門編で関数の基本を学びました。ここではさらに便利な機能を学びます。</p>
+<h3>デフォルト引数（入門の復習＋応用）</h3>
+<div class="highlight">def greet(name, greeting="こんにちは", punct="！"):
+    return f"{greeting}、{name}{punct}"
+
+greet("太郎")                    # こんにちは、太郎！
+greet("花子", "おはよう")        # おはよう、花子！
+greet("次郎", punct="。")        # こんにちは、次郎。</div>
+<h3>複数の値を返す</h3>
+<div class="highlight">def divmod_custom(a, b):
+    return a // b, a % b  # タプルで返す
+
+quotient, remainder = divmod_custom(17, 5)
+# quotient=3, remainder=2</div>
+<h3>関数の中で関数を使う</h3>
+<div class="highlight">def apply_twice(func, value):
+    return func(func(value))
+
+def double(x):
+    return x * 2
+
+print(apply_twice(double, 3))  # 12（3→6→12）</div>
+<div class="tip">関数は他の変数と同じように扱えます。関数を引数として渡すこともできます。</div>
+<div class="challenge">税込み価格を計算する関数を作ってみよう（デフォルト税率10%）。</div>
+    `,
+    code: `# デフォルト引数の活用
+def make_border(text, char="*", width=20):
+    line = char * width
+    pad = (width - len(text) - 2) // 2
+    middle = char + " " * pad + text + " " * pad + char
+    # 幅を調整
+    if len(middle) < width:
+        middle += char
+    return f"{line}\n{middle}\n{line}"
+
+print(make_border("Hello"))
+print()
+print(make_border("Python", char="-", width=24))
+
+# 複数の戻り値
+def analyze(numbers):
+    return (
+        len(numbers),
+        sum(numbers),
+        sum(numbers) / len(numbers),
+        min(numbers),
+        max(numbers),
+    )
+
+data = [12, 45, 7, 89, 34, 56, 23, 78]
+count, total, avg, lo, hi = analyze(data)
+print(f"\n個数: {count}")
+print(f"合計: {total}")
+print(f"平均: {avg:.1f}")
+print(f"最小: {lo} / 最大: {hi}")`,
+    quiz: {
+      q: "def f(a, b=10): の関数を f(5) と呼んだとき b の値は？",
+      opts: ["None", "0", "10", "エラー"],
+      ans: 2,
+      explanation: "正解！ b を指定しなかった場合はデフォルト値の 10 が使われます。"
+    }
+  },
+
+  // ===== 7. スコープ =====
+  {
+    chapter: "関数をもっと使いこなす",
+    title: "スコープ（変数の有効範囲）",
+    icon: "🔭", level: "初中級",
+    content: `
+<h2>変数が使える範囲（スコープ）</h2>
+<p>変数には「どこから使えるか」という<strong>スコープ（有効範囲）</strong>があります。</p>
+<h3>ローカル変数とグローバル変数</h3>
+<div class="highlight">x = 10  # グローバル変数（関数の外で定義）
+
+def func():
+    y = 20  # ローカル変数（関数の中だけ使える）
+    print(x)  # グローバルは読める
+    print(y)  # ローカルも読める
+
+func()
+# print(y)  ← エラー！関数の外からローカルは使えない</div>
+<h3>global キーワード</h3>
+<div class="highlight">count = 0  # グローバル
+
+def increment():
+    global count   # グローバルを変更すると宣言
+    count += 1
+
+increment()
+increment()
+print(count)  # 2</div>
+<h3>スコープのルール（LEGB）</h3>
+<div class="highlight">Local（関数内）→ Enclosing（外側の関数）
+→ Global（モジュール）→ Built-in（組み込み）
+の順番で変数を探します。</div>
+<div class="warning">global はなるべく使わないほうが良いです。代わりに関数の引数・戻り値を使いましょう。</div>
+    `,
+    code: `# ローカル vs グローバル
+message = "グローバルなメッセージ"
+
+def show():
+    local_msg = "ローカルなメッセージ"
+    print(message)    # グローバルは読める
+    print(local_msg)  # ローカルも読める
+
+show()
+print(message)     # OK
+# print(local_msg) ← NameError になる
+
+# global キーワード
+total = 0
+
+def add_to_total(n):
+    global total
+    total += n
+
+add_to_total(10)
+add_to_total(25)
+add_to_total(15)
+print(f"合計: {total}")
+
+# 推奨：引数と戻り値を使う（globalより良い）
+def add_value(current, n):
+    return current + n
+
+score = 0
+score = add_value(score, 10)
+score = add_value(score, 25)
+print(f"スコア: {score}")`,
+    quiz: {
+      q: "関数の外で定義した変数を、関数内から読み取ることは？",
+      opts: ["できない", "できる（読み取りのみ）", "global宣言が必要", "エラーになる"],
+      ans: 1,
+      explanation: "正解！ グローバル変数は関数内から読み取ることができます。ただし変更するには global 宣言が必要です。"
+    }
+  },
+
+  // ===== 8. モジュール =====
+  {
+    chapter: "便利な標準機能",
+    title: "モジュールを使う",
+    icon: "📦", level: "初中級",
+    content: `
+<h2>モジュールを使って機能を追加しよう</h2>
+<p>Pythonには最初から使える便利なモジュール（ライブラリ）が大量に含まれています。<code>import</code> するだけで使えます。</p>
+<h3>import の書き方</h3>
+<div class="highlight">import math               # math モジュール全体
+from math import sqrt     # sqrt だけ取り込む
+import math as m          # m という名前で使う</div>
+<h3>よく使うモジュール</h3>
+<div class="highlight">import math
+print(math.pi)         # 円周率
+print(math.sqrt(16))   # √16 = 4.0
+print(math.ceil(3.2))  # 切り上げ = 4
+print(math.floor(3.8)) # 切り捨て = 3</div>
+<div class="highlight">import random
+random.randint(1, 6)          # 1〜6のランダム整数
+random.choice(["A","B","C"])  # リストからランダム選択
+random.shuffle(lst)           # リストをシャッフル</div>
+<div class="highlight">import datetime
+today = datetime.date.today()
+now   = datetime.datetime.now()
+print(today)   # 2024-03-15
+print(now)     # 2024-03-15 14:30:00.123456</div>
+<div class="tip">モジュールは「機能の箱」です。必要な機能だけ from で取り込むとスッキリ書けます。</div>
+    `,
+    code: `import math
+import random
+import datetime
+
+# math
+print("=== math ===")
+print(f"π = {math.pi:.4f}")
+print(f"√2 = {math.sqrt(2):.4f}")
+print(f"2^10 = {math.pow(2, 10):.0f}")
+print(f"ceil(2.3) = {math.ceil(2.3)}")
+
+# random
+print("\n=== random ===")
+dice = random.randint(1, 6)
+print(f"サイコロ: {dice}")
+
+cards = ["♠A", "♥K", "♦Q", "♣J", "♠10"]
+random.shuffle(cards)
+print(f"シャッフル: {cards}")
+print(f"引いたカード: {random.choice(cards)}")
+
+# datetime
+print("\n=== datetime ===")
+today = datetime.date.today()
+print(f"今日: {today}")
+print(f"年={today.year}, 月={today.month}, 日={today.day}")
+
+birthday = datetime.date(2000, 1, 1)
+diff = today - birthday
+print(f"2000/1/1から {diff.days} 日経過")`,
+    quiz: {
+      q: "random.choice([1, 2, 3, 4, 5]) の動作は？",
+      opts: ["常に1を返す", "リストから1つランダムに選んで返す", "リストを並べ替える", "リストを返す"],
+      ans: 1,
+      explanation: "正解！ random.choice() はリスト・タプルからランダムに1要素を選んで返します。"
+    }
+  },
+
+  // ===== 9. ファイル操作 =====
+  {
+    chapter: "便利な標準機能",
+    title: "ファイルの読み書き",
+    icon: "📄", level: "初中級",
+    content: `
+<h2>ファイルを読み書きしよう</h2>
+<p>テキストファイルにデータを保存したり、読み込んだりする方法を学びます。</p>
+<h3>ファイルを書く</h3>
+<div class="highlight">with open("test.txt", "w", encoding="utf-8") as f:
+    f.write("1行目\\n")
+    f.write("2行目\\n")</div>
+<h3>ファイルを読む</h3>
+<div class="highlight">with open("test.txt", "r", encoding="utf-8") as f:
+    content = f.read()      # 全体を読む
+    # または
+    for line in f:          # 1行ずつ読む
+        print(line.strip())</div>
+<h3>ファイルを追記する</h3>
+<div class="highlight">with open("log.txt", "a", encoding="utf-8") as f:
+    f.write("追加の行\\n")</div>
+<h3>モード一覧</h3>
+<div class="highlight">"r"  読み込み（デフォルト）
+"w"  書き込み（上書き）
+"a"  追記
+"x"  新規作成（既存ならエラー）</div>
+<div class="tip"><code>with</code> 文を使うと、処理が終わると自動でファイルが閉じられます。with を使わないと閉じ忘れるバグが起きやすいです。</div>
+<div class="warning">Pyodideの環境ではファイルはメモリ上に作成されます（実際のファイルシステムとは異なります）。</div>
+    `,
+    code: `# ファイルに書き込む
+with open("/tmp/memo.txt", "w", encoding="utf-8") as f:
+    f.write("Pythonの勉強メモ\n")
+    f.write("================\n")
+    f.write("1. 変数と型\n")
+    f.write("2. 条件分岐\n")
+    f.write("3. ループ\n")
+    f.write("4. 関数\n")
+print("書き込み完了！")
+
+# ファイルを読み込む
+print("\n--- ファイルの内容 ---")
+with open("/tmp/memo.txt", "r", encoding="utf-8") as f:
+    content = f.read()
+print(content)
+
+# 1行ずつ処理
+print("--- 行番号付き ---")
+with open("/tmp/memo.txt", "r", encoding="utf-8") as f:
+    for i, line in enumerate(f, start=1):
+        print(f"{i:2}: {line}", end="")
+
+# 追記
+with open("/tmp/memo.txt", "a", encoding="utf-8") as f:
+    f.write("5. クラス\n")
+
+# 行数を数える
+with open("/tmp/memo.txt", "r", encoding="utf-8") as f:
+    lines = f.readlines()
+print(f"\n合計 {len(lines)} 行")`,
+    quiz: {
+      q: "ファイルを開くモード \"a\" の意味は？",
+      opts: ["全部読む", "上書きで書く", "追記する", "自動保存"],
+      ans: 2,
+      explanation: "正解！ \"a\" は append（追記）モードです。既存のファイルの末尾に内容を追加します。"
+    }
+  },
+
+  // ===== 10. エラー処理 =====
+  {
+    chapter: "便利な標準機能",
+    title: "エラー処理（try / except）",
+    icon: "🛡️", level: "初中級",
+    content: `
+<h2>エラーを安全に処理しよう</h2>
+<p>プログラムが予期しないエラーで止まらないように、<strong>例外処理</strong>を使います。</p>
+<h3>基本の形</h3>
+<div class="highlight">try:
+    # エラーが起きるかもしれない処理
+    result = 10 / 0
+
+except ZeroDivisionError:
+    # エラーが起きたときの処理
+    print("ゼロで割ることはできません")</div>
+<h3>よくあるエラーの種類</h3>
+<div class="highlight">ZeroDivisionError  ゼロ除算
+ValueError         不正な値（int("abc") など）
+IndexError         リスト範囲外（lst[999]）
+KeyError           辞書に存在しないキー
+FileNotFoundError  ファイルが見つからない
+TypeError          型が合わない</div>
+<h3>else と finally</h3>
+<div class="highlight">try:
+    result = int(input_str)
+except ValueError:
+    print("数値を入力してください")
+else:
+    print(f"成功: {result}")   # エラーなし時のみ実行
+finally:
+    print("処理終了")          # 必ず実行</div>
+<div class="tip">エラーが起きそうな場所だけを try で囲みましょう。すべてを囲むと本当のバグを見逃すことがあります。</div>
+    `,
+    code: `# 基本のtry/except
+def safe_divide(a, b):
+    try:
+        return a / b
+    except ZeroDivisionError:
+        return None
+
+print(safe_divide(10, 2))   # 5.0
+print(safe_divide(10, 0))   # None
+
+# 複数のエラーをキャッチ
+def safe_int(text):
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+tests = ["42", "3.14", "abc", "100", ""]
+for t in tests:
+    result = safe_int(t)
+    if result is not None:
+        print(f"'{t}' → {result}")
+    else:
+        print(f"'{t}' → 変換できません")
+
+# else と finally
+print("\n--- try/except/else/finally ---")
+values = ["10", "0", "abc"]
+for v in values:
+    try:
+        n = int(v)
+        result = 100 / n
+    except ZeroDivisionError:
+        print(f"{v}: ゼロ除算エラー")
+    except ValueError:
+        print(f"{v}: 数値ではありません")
+    else:
+        print(f"{v}: 結果 = {result:.1f}")
+    finally:
+        print(f"  └─ 処理完了")`,
+    quiz: {
+      q: "try/except の else ブロックはいつ実行される？",
+      opts: ["必ず実行される", "エラーが起きたとき", "エラーが起きなかったとき", "finallyの後"],
+      ans: 2,
+      explanation: "正解！ else はエラー（例外）が発生しなかったときだけ実行されます。成功したときの処理を書くのに使います。"
+    }
+  },
+
+  // ===== 11. リスト内包表記 =====
+  {
+    chapter: "もっとスマートに書く",
+    title: "リスト内包表記",
+    icon: "⚡", level: "中級",
+    content: `
+<h2>ループを1行で書く（リスト内包表記）</h2>
+<p>リストを作るループをもっとスマートに書ける方法です。慣れると手放せなくなります。</p>
+<h3>普通のループとの比較</h3>
+<div class="highlight"># 普通の書き方
+result = []
+for i in range(5):
+    result.append(i * 2)
+
+# リスト内包表記（同じ結果）
+result = [i * 2 for i in range(5)]</div>
+<h3>条件フィルタ付き</h3>
+<div class="highlight"># 偶数だけ選ぶ
+evens = [x for x in range(10) if x % 2 == 0]
+# → [0, 2, 4, 6, 8]</div>
+<h3>文字列の変換にも使える</h3>
+<div class="highlight">words = ["hello", "python", "world"]
+upper = [w.upper() for w in words]
+# → ["HELLO", "PYTHON", "WORLD"]
+
+# 条件付き変換
+result = [w.upper() if len(w) > 5 else w for w in words]</div>
+<div class="tip">リスト内包表記は読みやすいうちは使いましょう。複雑になりすぎたら普通のfor文の方が親切です。</div>
+<div class="challenge">1〜100の中から3の倍数かつ5の倍数（FizzBuzz対象）の数だけ取り出してみよう。</div>
+    `,
+    code: `# 基本
+squares = [i**2 for i in range(1, 11)]
+print("二乗:", squares)
+
+# 条件フィルタ
+evens = [x for x in range(20) if x % 2 == 0]
+print("偶数:", evens)
+
+# 文字列処理
+fruits = ["apple", "Banana", "CHERRY", "date"]
+normalized = [f.lower().capitalize() for f in fruits]
+print("正規化:", normalized)
+
+# 辞書からリストを作る
+students = [
+    {"name": "太郎", "score": 85},
+    {"name": "花子", "score": 92},
+    {"name": "次郎", "score": 67},
+    {"name": "桃子", "score": 78},
+]
+
+# 80点以上の名前だけ取り出す
+good = [s["name"] for s in students if s["score"] >= 80]
+print("80点以上:", good)
+
+# 平均を計算
+avg = sum(s["score"] for s in students) / len(students)
+print(f"平均: {avg:.1f}点")
+
+# FizzBuzz を内包表記で
+fizzbuzz = [
+    "FizzBuzz" if i%15==0 else "Fizz" if i%3==0 else "Buzz" if i%5==0 else str(i)
+    for i in range(1, 21)
+]
+print("FizzBuzz:", fizzbuzz)`,
+    quiz: {
+      q: "[x for x in range(5) if x % 2 != 0] の結果は？",
+      opts: ["[0, 2, 4]", "[1, 3]", "[1, 2, 3, 4]", "[0, 1, 2, 3, 4]"],
+      ans: 1,
+      explanation: "正解！ x % 2 != 0 は「奇数」という条件なので、0〜4の奇数 → [1, 3] になります。"
+    }
+  },
+
+  // ===== 12. lambda と sorted =====
+  {
+    chapter: "もっとスマートに書く",
+    title: "lambda と sorted",
+    icon: "λ", level: "中級",
+    content: `
+<h2>lambda（ラムダ）を使ってみよう</h2>
+<p><strong>lambda</strong> は名前なしの小さな関数です。 <code>sorted</code> や <code>max</code> の key に渡すときによく使います。</p>
+<h3>lambda の書き方</h3>
+<div class="highlight">lambda 引数: 式
+
+# 例
+double = lambda x: x * 2
+add    = lambda x, y: x + y
+
+print(double(5))   # 10
+print(add(3, 4))   # 7</div>
+<h3>sorted の key に使う</h3>
+<div class="highlight">words = ["banana", "fig", "apple", "cherry"]
+
+# 文字数順
+sorted(words, key=lambda w: len(w))
+# → ["fig", "apple", "banana", "cherry"]
+
+# 辞書リストをある値でソート
+people = [{"name": "花子", "age": 25},
+          {"name": "太郎", "age": 30}]
+sorted(people, key=lambda p: p["age"])</div>
+<h3>max / min にも使える</h3>
+<div class="highlight">products = [{"name": "A", "price": 500},
+            {"name": "B", "price": 200}]
+cheapest = min(products, key=lambda p: p["price"])
+# → {"name": "B", "price": 200}</div>
+<div class="tip">lambda はシンプルな1行の処理に使いましょう。複雑な処理は def で名前をつけた関数にする方が読みやすいです。</div>
+    `,
+    code: `# lambda の基本
+triple = lambda x: x * 3
+print(triple(7))
+
+# sorted + lambda
+words = ["banana", "fig", "apple", "elderberry", "cherry"]
+print("長さ順:", sorted(words, key=lambda w: len(w)))
+print("逆アルファベット:", sorted(words, key=lambda w: w[-1]))
+
+# 辞書リストのソート
+students = [
+    {"name": "次郎", "score": 78, "age": 20},
+    {"name": "花子", "score": 92, "age": 19},
+    {"name": "太郎", "score": 85, "age": 21},
+    {"name": "桃子", "score": 92, "age": 18},
+]
+
+# スコア降順、同点なら年齢昇順
+ranked = sorted(students, key=lambda s: (-s["score"], s["age"]))
+print("\n--- 順位表 ---")
+for i, s in enumerate(ranked, 1):
+    print(f"  {i}位: {s['name']} {s['score']}点 ({s['age']}歳)")
+
+# max/min
+best = max(students, key=lambda s: s["score"])
+print(f"\n最高得点: {best['name']} ({best['score']}点)")`,
+    quiz: {
+      q: "sorted([3,1,4,1,5], key=lambda x: -x) の結果は？",
+      opts: ["[1,1,3,4,5]", "[5,4,3,1,1]", "[3,1,4,1,5]", "エラー"],
+      ans: 1,
+      explanation: "正解！ key=lambda x: -x は「マイナスにした値」でソート → 大きい順（降順）になります。[5,4,3,1,1] です。"
+    }
+  },
+
+  // ===== 13. 総合練習 =====
+  {
+    chapter: "総合練習",
+    title: "ミニ家計簿アプリ",
+    icon: "🏆", level: "中級",
+    content: `
+<h2>総合練習：ミニ家計簿アプリ</h2>
+<p>ここまで学んだすべてを使って、実践的なプログラムを作りましょう。</p>
+<h3>使用する概念</h3>
+<div class="highlight">✅ スライス
+✅ タプル・set
+✅ リスト操作（sorted, enumerate, zip）
+✅ 辞書の応用（集計・get）
+✅ ネストしたデータ（辞書のリスト）
+✅ 関数の応用
+✅ try/except
+✅ リスト内包表記
+✅ lambda</div>
+<h3>次のステップ</h3>
+<div class="highlight">ここまでマスターしたら次へ：
+
+🔹 クラス（上級編①）
+🔹 デコレータ（上級編②）
+🔹 型ヒント（上級編③）
+🔹 非同期処理（上級編④）</div>
+<div class="tip">コードを自由に変えて、カテゴリを追加したり、月別集計をしてみよう！</div>
+<div class="challenge">「食費」カテゴリの合計だけ表示する処理を追加してみよう！</div>
+    `,
+    code: `# ===== ミニ家計簿アプリ =====
+
+# 支出データ（辞書のリスト）
+expenses = [
+    {"date": "2024-03-01", "category": "食費",    "item": "スーパー",    "amount": 3200},
+    {"date": "2024-03-02", "category": "交通費",  "item": "電車定期",    "amount": 12000},
+    {"date": "2024-03-03", "category": "食費",    "item": "コンビニ",    "amount": 540},
+    {"date": "2024-03-05", "category": "娯楽",    "item": "映画",        "amount": 1800},
+    {"date": "2024-03-07", "category": "食費",    "item": "ランチ",      "amount": 850},
+    {"date": "2024-03-10", "category": "日用品",  "item": "シャンプー",  "amount": 600},
+    {"date": "2024-03-12", "category": "娯楽",    "item": "ゲーム",      "amount": 3000},
+    {"date": "2024-03-15", "category": "食費",    "item": "外食",        "amount": 2100},
+]
+
+# --- 1. 全支出の一覧 ---
+print("=== 支出一覧 ===")
+for e in expenses:
+    print(f"  {e['date']}  {e['category']:8} {e['item']:12} ¥{e['amount']:>6,}")
+
+# --- 2. 合計 ---
+total = sum(e["amount"] for e in expenses)
+print(f"\n合計: ¥{total:,}")
+
+# --- 3. カテゴリ別集計 ---
+by_category = {}
+for e in expenses:
+    by_category[e["category"]] = by_category.get(e["category"], 0) + e["amount"]
+
+print("\n=== カテゴリ別 ===")
+for cat, amount in sorted(by_category.items(), key=lambda x: x[1], reverse=True):
+    bar = "█" * (amount // 500)
+    pct = amount / total * 100
+    print(f"  {cat:8} ¥{amount:>6,}  {pct:4.1f}%  {bar}")
+
+# --- 4. 高額支出トップ3 ---
+top3 = sorted(expenses, key=lambda e: e["amount"], reverse=True)[:3]
+print("\n=== 支出トップ3 ===")
+for i, e in enumerate(top3, 1):
+    print(f"  {i}位: {e['item']} ¥{e['amount']:,}")
+
+# --- 5. カテゴリ一覧（重複なし）---
+categories = sorted(set(e["category"] for e in expenses))
+print(f"\nカテゴリ: {', '.join(categories)}")`,
+    quiz: {
+      q: "ステップアップ編を終えて、次にやりたいことは？",
+      opts: ["クラスを学ぶ", "実際にアプリを作る", "上級編に挑戦する", "全部！"],
+      ans: 3,
+      explanation: "素晴らしい！その意欲で上級編もクリアできます！🎉 ステップアップ編お疲れ様でした！"
+    }
+  }
+];
+
+// ==================== APP STATE ====================
+let currentLesson = 0;
+let points = 0;
+let completed = new Set();
+let quizAnswered = false;
+
+function init() {
+  renderSidebar();
+  loadLesson(0);
+}
+
+function renderSidebar() {
+  const list = document.getElementById('lesson-list');
+  list.innerHTML = '';
+  let lastChapter = '';
+  lessons.forEach((lesson, i) => {
+    if (lesson.chapter !== lastChapter) {
+      const ch = document.createElement('div');
+      ch.className = 'chapter';
+      ch.textContent = lesson.chapter;
+      list.appendChild(ch);
+      lastChapter = lesson.chapter;
+    }
+    const btn = document.createElement('button');
+    btn.className = 'lesson-btn' + (i === currentLesson ? ' active' : '');
+    btn.innerHTML = `<span class="icon">${lesson.icon}</span>${lesson.title}` +
+      (completed.has(i) ? '<span class="check">✓</span>' : '');
+    btn.onclick = () => loadLesson(i);
+    list.appendChild(btn);
+  });
+}
+
+function loadLesson(idx) {
+  currentLesson = idx;
+  quizAnswered = false;
+  const lesson = lessons[idx];
+
+  document.getElementById('lesson-title').textContent = lesson.title;
+  document.getElementById('lesson-badge').textContent = `レッスン ${idx + 1} / ${lessons.length}`;
+  document.getElementById('level-badge').textContent = lesson.level;
+  document.getElementById('lesson-content').innerHTML = lesson.content;
+  document.getElementById('code-editor').value = lesson.code;
+  clearOutput();
+
+  const quizArea = document.getElementById('quiz-area');
+  quizArea.style.display = 'block';
+  document.getElementById('quiz-question').textContent = lesson.quiz.q;
+  const optsEl = document.getElementById('quiz-options');
+  optsEl.innerHTML = '';
+  lesson.quiz.opts.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'quiz-opt';
+    btn.textContent = opt;
+    btn.onclick = () => answerQuiz(i, btn);
+    optsEl.appendChild(btn);
+  });
+  document.getElementById('quiz-feedback').style.display = 'none';
+
+  document.getElementById('prev-btn').disabled = idx === 0;
+  document.getElementById('next-btn').textContent = idx === lessons.length - 1 ? '完了 🎉' : '次へ →';
+
+  renderSidebar();
+  updateProgress();
+}
+
+function answerQuiz(selected, btnEl) {
+  if (quizAnswered) return;
+  quizAnswered = true;
+  const lesson = lessons[currentLesson];
+  const opts = document.querySelectorAll('.quiz-opt');
+  const fb = document.getElementById('quiz-feedback');
+
+  opts.forEach(b => b.style.pointerEvents = 'none');
+  opts[lesson.quiz.ans].classList.add('correct');
+
+  if (selected === lesson.quiz.ans) {
+    btnEl.classList.add('correct');
+    fb.className = 'ok';
+    fb.textContent = '✅ ' + lesson.quiz.explanation;
+    if (!completed.has(currentLesson)) {
+      points += 15;
+      completed.add(currentLesson);
+      document.getElementById('pts-display').textContent = `⭐ ${points} pt`;
+    }
+  } else {
+    btnEl.classList.add('wrong');
+    fb.className = 'ng';
+    fb.textContent = '❌ 惜しい！正解は「' + lesson.quiz.opts[lesson.quiz.ans] + '」。' + lesson.quiz.explanation;
+    completed.add(currentLesson);
+  }
+  fb.style.display = 'block';
+  updateProgress();
+  renderSidebar();
+}
+
+function updateProgress() {
+  const pct = Math.round((completed.size / lessons.length) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+function prevLesson() { if (currentLesson > 0) loadLesson(currentLesson - 1); }
+function nextLesson() {
+  if (currentLesson < lessons.length - 1) {
+    loadLesson(currentLesson + 1);
+  } else {
+    document.getElementById('content-area').innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;text-align:center;padding:40px;">
+        <div style="font-size:80px;margin-bottom:24px;">🚀</div>
+        <h2 style="font-size:28px;margin-bottom:12px;">ステップアップ編 完了！</h2>
+        <p style="color:#8892a4;font-size:16px;margin-bottom:8px;">獲得ポイント: ⭐ ${points} pt</p>
+        <p style="color:#8892a4;font-size:15px;margin-top:16px;">スライス・辞書・関数・ファイル・内包表記をマスター！<br>準備ができたら上級編（クラス・型ヒント・非同期）へ挑戦しよう！</p>
+        <div style="display:flex;gap:12px;margin-top:32px;">
+          <button onclick="window.location.href='python_learning.html'" style="padding:12px 24px;background:#22263a;color:#c8d0e0;border:1px solid #2d3248;border-radius:8px;font-size:14px;cursor:pointer;">入門編を復習</button>
+          <button onclick="window.location.href='python_learning_3.html'" style="padding:12px 24px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">上級編へ →</button>
+          <button onclick="loadLesson(0)" style="padding:12px 24px;background:#34d399;color:#000;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">最初から復習</button>
+        </div>
+      </div>`;
+    document.getElementById('nav-buttons').style.display = 'none';
+  }
+}
+
+// ==================== CODE EXECUTION ====================
+let pyodide = null;
+
+async function initPyodide() {
+  const btn = document.getElementById('run-btn');
+  btn.textContent = '読込中...';
+  btn.disabled = true;
+  try {
+    pyodide = await loadPyodide();
+    btn.textContent = '▶ 実行';
+    btn.disabled = false;
+  } catch(e) {
+    btn.textContent = '❌ 読込失敗';
+    console.error('Pyodide load error:', e);
+  }
+}
+initPyodide();
+
+async function runCode() {
+  const code = document.getElementById('code-editor').value;
+  const output = document.getElementById('output');
+  output.innerHTML = '';
+
+  if (!pyodide) {
+    output.innerHTML = '<span class="out-hint">Pythonを読み込み中です。少し待ってから再試行してください。</span>';
+    return;
+  }
+
+  try {
+    pyodide.globals.set('_user_code', code);
+    const result = await pyodide.runPythonAsync(`
+import sys, io, traceback
+_buf = io.StringIO()
+_err_buf = io.StringIO()
+_old_out, _old_err = sys.stdout, sys.stderr
+sys.stdout, sys.stderr = _buf, _err_buf
+try:
+    exec(_user_code)
+except Exception:
+    print(traceback.format_exc(), file=_err_buf)
+finally:
+    sys.stdout, sys.stderr = _old_out, _old_err
+(_buf.getvalue(), _err_buf.getvalue())
+`);
+    const [stdout, stderr] = result.toJs();
+    if (stdout) {
+      const span = document.createElement('span');
+      span.className = 'out-ok';
+      span.textContent = stdout;
+      output.appendChild(span);
+    }
+    if (stderr) {
+      const span = document.createElement('span');
+      span.className = 'out-err';
+      span.textContent = stderr;
+      output.appendChild(span);
+    }
+  } catch(e) {
+    const span = document.createElement('span');
+    span.className = 'out-err';
+    span.textContent = '⚠️ エラー: ' + e.message;
+    output.appendChild(span);
+  }
+
+  if (!output.innerHTML) {
+    output.innerHTML = '<span class="out-hint">（出力なし）</span>';
+  }
+}
+
+function resetCode() {
+  document.getElementById('code-editor').value = lessons[currentLesson].code;
+  clearOutput();
+}
+
+function clearOutput() {
+  document.getElementById('output').innerHTML = '<span class="out-hint">▶ 実行ボタンを押して結果を確認しよう</span>';
+}
+
+document.getElementById('code-editor').addEventListener('keydown', function(e) {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = this.selectionStart;
+    const end = this.selectionEnd;
+    this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+    this.selectionStart = this.selectionEnd = start + 4;
+  }
+});
+
+init();
+</script>
+</body>
+</html>

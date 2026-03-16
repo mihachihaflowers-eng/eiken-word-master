@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Database (学習進捗データ - ローカル管理)
+*.db
+
+# IDE / Claude
+.claude/

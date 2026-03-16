@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 上級編</title>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --panel: #141720;
+    --card: #1c2033;
+    --accent: #f97316;
+    --accent2: #ef4444;
+    --green: #3ecf8e;
+    --red: #f06a6a;
+    --yellow: #f5c842;
+    --blue: #60a5fa;
+    --text: #e2e8f0;
+    --muted: #7a8499;
+    --border: #252a3d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+
+  #sidebar {
+    width: 268px; min-width: 268px; background: var(--panel);
+    border-right: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column;
+  }
+  #sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  #sidebar-header h2 { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .nav-links { display: flex; flex-direction: column; gap: 4px; }
+  .nav-links a { font-size: 12px; color: var(--accent); text-decoration: none; }
+  .nav-links a:hover { text-decoration: underline; }
+  .chapter { padding: 8px 16px 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 8px; }
+  .lesson-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; cursor: pointer; transition: background 0.15s;
+    border: none; background: none; color: var(--text); width: 100%; text-align: left; font-size: 13.5px;
+  }
+  .lesson-btn:hover { background: var(--card); }
+  .lesson-btn.active { background: rgba(249,115,22,0.15); color: var(--accent); }
+  .lesson-btn .icon { font-size: 16px; width: 20px; text-align: center; }
+  .lesson-btn .check { margin-left: auto; color: var(--green); font-size: 14px; }
+  .progress-bar { height: 3px; background: var(--border); }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.4s; }
+
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #topbar {
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px; background: var(--panel);
+  }
+  #topbar h1 { font-size: 17px; font-weight: 600; }
+  .badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+  .badge-num { background: rgba(249,115,22,0.2); color: var(--accent); }
+  .badge-lv { background: rgba(239,68,68,0.15); color: var(--accent2); }
+  #topbar .pts { margin-left: auto; color: var(--yellow); font-weight: 700; font-size: 14px; }
+
+  #content-area { flex: 1; display: flex; overflow: hidden; }
+  #lesson-panel { width: 50%; border-right: 1px solid var(--border); overflow-y: auto; padding: 28px 28px 40px; }
+  #lesson-panel h2 { font-size: 21px; margin-bottom: 16px; }
+  #lesson-panel p { line-height: 1.75; color: #bec8db; margin-bottom: 14px; font-size: 14.5px; }
+  #lesson-panel h3 { margin: 20px 0 10px; font-size: 15px; color: var(--accent); }
+  #lesson-panel h4 { margin: 14px 0 6px; font-size: 13.5px; color: var(--blue); }
+  #lesson-panel .hl {
+    background: var(--card); border-left: 3px solid var(--accent);
+    padding: 13px 15px; border-radius: 0 8px 8px 0; margin: 12px 0;
+    font-size: 13px; line-height: 1.75; color: #cfd8ec; font-family: 'Consolas', monospace;
+  }
+  #lesson-panel .tip {
+    background: rgba(62,207,142,0.07); border: 1px solid rgba(62,207,142,0.25);
+    border-radius: 8px; padding: 11px 15px; margin: 12px 0; font-size: 13.5px;
+  }
+  #lesson-panel .tip::before { content: "💡 "; }
+  #lesson-panel .warn {
+    background: rgba(245,200,66,0.07); border: 1px solid rgba(245,200,66,0.25);
+    border-radius: 8px; padding: 11px 15px; margin: 12px 0; font-size: 13.5px;
+  }
+  #lesson-panel .warn::before { content: "⚠️ "; }
+  #lesson-panel .challenge {
+    background: rgba(249,115,22,0.07); border: 1px solid rgba(249,115,22,0.25);
+    border-radius: 8px; padding: 11px 15px; margin: 12px 0; font-size: 13.5px;
+  }
+  #lesson-panel .challenge::before { content: "🎯 チャレンジ："; font-weight: 700; color: var(--accent); }
+
+  #code-panel { width: 50%; display: flex; flex-direction: column; background: var(--bg); }
+  #code-toolbar {
+    padding: 11px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  #code-toolbar span { font-size: 13px; color: var(--muted); }
+  #run-btn {
+    margin-left: auto; background: var(--green); color: #000; border: none;
+    padding: 7px 20px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;
+  }
+  #run-btn:hover { opacity: 0.85; }
+  #run-btn:disabled { opacity: 0.45; cursor: default; }
+  #reset-btn {
+    background: var(--card); color: var(--muted); border: 1px solid var(--border);
+    padding: 7px 14px; border-radius: 6px; font-size: 13px; cursor: pointer;
+  }
+  #code-editor {
+    flex: 1; background: #090c12; color: #e6edf3;
+    font-family: 'Consolas','Courier New', monospace; font-size: 13.5px;
+    line-height: 1.65; padding: 16px; border: none; outline: none; resize: none; tab-size: 4;
+  }
+  #output-area { height: 165px; border-top: 1px solid var(--border); display: flex; flex-direction: column; }
+  #output-label {
+    padding: 7px 16px; font-size: 12px; color: var(--muted); background: var(--panel);
+    border-bottom: 1px solid var(--border); display: flex; align-items: center;
+  }
+  #clear-btn { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; }
+  #output {
+    flex: 1; overflow-y: auto; padding: 12px 16px; font-family: 'Consolas', monospace;
+    font-size: 13px; line-height: 1.6; background: #06090f; white-space: pre-wrap;
+  }
+  #output .out-ok { color: #7ee8a2; }
+  #output .out-err { color: var(--red); }
+  #output .out-hint { color: var(--muted); font-style: italic; }
+
+  #quiz-area { display: none; margin-top: 22px; }
+  #quiz-area h3 { color: var(--yellow); margin-bottom: 11px; font-size: 15px; }
+  .quiz-q { font-size: 14px; margin-bottom: 13px; line-height: 1.65; }
+  .quiz-options { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+  .quiz-opt {
+    background: var(--card); border: 1px solid var(--border);
+    padding: 9px 13px; border-radius: 7px; cursor: pointer;
+    font-size: 13.5px; transition: all 0.15s; text-align: left; color: var(--text); font-family: inherit;
+  }
+  .quiz-opt:hover { border-color: var(--accent); background: rgba(249,115,22,0.1); }
+  .quiz-opt.correct { background: rgba(62,207,142,0.15); border-color: var(--green); color: var(--green); }
+  .quiz-opt.wrong { background: rgba(240,106,106,0.15); border-color: var(--red); color: var(--red); }
+  #quiz-feedback { font-size: 13.5px; padding: 10px 14px; border-radius: 8px; margin-top: 8px; display: none; line-height: 1.65; }
+  #quiz-feedback.ok { background: rgba(62,207,142,0.1); color: var(--green); border: 1px solid rgba(62,207,142,0.3); }
+  #quiz-feedback.ng { background: rgba(240,106,106,0.1); color: var(--red); border: 1px solid rgba(240,106,106,0.3); }
+
+  #nav-buttons { padding: 14px 28px; border-top: 1px solid var(--border); display: flex; gap: 12px; background: var(--panel); }
+  .nav-btn { padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+  #prev-btn { background: var(--card); color: var(--muted); border: 1px solid var(--border); }
+  #next-btn { background: var(--accent); color: #fff; margin-left: auto; }
+  #prev-btn:hover, #next-btn:hover { opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  <div id="sidebar-header">
+    <h2>上級編</h2>
+    <div class="nav-links">
+      <a href="python_learning.html">← 入門編</a>
+      <a href="python_learning_2.html">← ステップアップ編</a>
+    </div>
+  </div>
+  <div id="lesson-list"></div>
+</div>
+
+<div id="main">
+  <div id="topbar">
+    <h1 id="lesson-title">Python 上級編</h1>
+    <span class="badge badge-num" id="lesson-badge">レッスン 1</span>
+    <span class="badge badge-lv" id="level-badge">上級</span>
+    <span class="pts" id="pts-display">⭐ 0 pt</span>
+  </div>
+  <div id="content-area">
+    <div id="lesson-panel">
+      <div id="lesson-content"></div>
+      <div id="quiz-area">
+        <h3>✏️ 理解度チェック</h3>
+        <div class="quiz-q" id="quiz-question"></div>
+        <div class="quiz-options" id="quiz-options"></div>
+        <div id="quiz-feedback"></div>
+      </div>
+    </div>
+    <div id="code-panel">
+      <div id="code-toolbar">
+        <span>📝 コードを書いて実行しよう</span>
+        <button id="reset-btn" onclick="resetCode()">リセット</button>
+        <button id="run-btn" onclick="runCode()">▶ 実行</button>
+      </div>
+      <textarea id="code-editor" spellcheck="false"></textarea>
+      <div id="output-area">
+        <div id="output-label">
+          出力結果
+          <button id="clear-btn" onclick="clearOutput()">クリア</button>
+        </div>
+        <div id="output"></div>
+      </div>
+    </div>
+  </div>
+  <div id="nav-buttons">
+    <button class="nav-btn" id="prev-btn" onclick="prevLesson()">← 前へ</button>
+    <button class="nav-btn" id="next-btn" onclick="nextLesson()">次へ →</button>
+  </div>
+</div>
+
+<script>
+const lessons = [
+
+  // ===== 1. 型ヒント =====
+  {
+    chapter: "型システム",
+    title: "型ヒント（Type Hints）",
+    icon: "🏷️", level: "上級",
+    content: `
+<h2>型ヒントで安全なコードを書く</h2>
+<p>Python 3.5+ では<strong>型ヒント</strong>を使って変数・引数・戻り値の型を明示できます。実行時には無視されますが、バグの早期発見に役立ちます。</p>
+<h3>基本の型ヒント</h3>
+<div class="hl">def greet(name: str) -> str:
+    return f"Hello, {name}"
+
+age: int = 25
+pi: float = 3.14
+items: list[int] = [1, 2, 3]
+mapping: dict[str, int] = {"a": 1}</div>
+<h3>Optional と Union</h3>
+<div class="hl">from typing import Optional, Union
+
+# Optional[X] は X | None と同じ
+def find(id: int) -> Optional[str]:
+    ...
+
+# Union: 複数の型を許容
+def parse(val: Union[str, int]) -> float:
+    return float(val)</div>
+<h3>自作クラスの型ヒント</h3>
+<div class="hl">class User:
+    def __init__(self, name: str, age: int) -> None:
+        self.name = name
+        self.age = age
+
+def get_adult(users: list[User]) -> list[User]:
+    return [u for u in users if u.age >= 18]</div>
+<div class="tip">型ヒントは mypy や Pylance などの静的解析ツールと組み合わせると強力です。IDE の補完精度も上がります。</div>
+    `,
+    code: `from typing import Optional, Union
+
+# 基本の型ヒント
+def add(a: int, b: int) -> int:
+    return a + b
+
+def repeat(text: str, times: int = 1) -> str:
+    return text * times
+
+print(add(3, 5))
+print(repeat("Ha", 4))
+
+# Optional: None を返すかもしれない関数
+def find_user(users: list[dict], id: int) -> Optional[dict]:
+    for u in users:
+        if u["id"] == id:
+            return u
+    return None
+
+db = [{"id": 1, "name": "太郎"}, {"id": 2, "name": "花子"}]
+result = find_user(db, 2)
+print(result)
+print(find_user(db, 99))  # None
+
+# Union
+def stringify(val: Union[int, float, str]) -> str:
+    return f"値={val!r} 型={type(val).__name__}"
+
+for v in [42, 3.14, "hello"]:
+    print(stringify(v))`,
+    quiz: {
+      q: "Optional[str] と同じ意味の型ヒントはどれ？",
+      opts: ["str | int", "str | None", "Optional[int]", "Union[str, str]"],
+      ans: 1,
+      explanation: "正解！ Optional[X] は X | None と同じで「Xまたは None」を意味します。"
+    }
+  },
+
+  // ===== 2. dataclass =====
+  {
+    chapter: "型システム",
+    title: "dataclass",
+    icon: "🗂️", level: "上級",
+    content: `
+<h2>データクラス（@dataclass）</h2>
+<p><code>@dataclass</code> デコレータを使うと、<strong>__init__ / __repr__ / __eq__</strong> を自動生成してくれるクラスを簡単に作れます。</p>
+<h3>通常クラスとの比較</h3>
+<div class="hl"># 通常クラス（冗長）
+class Point:
+    def __init__(self, x: float, y: float):
+        self.x = x
+        self.y = y
+    def __repr__(self):
+        return f"Point(x={self.x}, y={self.y})"
+
+# dataclass（シンプル）
+from dataclasses import dataclass
+
+@dataclass
+class Point:
+    x: float
+    y: float</div>
+<h3>便利なオプション</h3>
+<div class="hl">@dataclass(frozen=True)  # イミュータブル（変更不可）
+class Color:
+    r: int
+    g: int
+    b: int
+
+@dataclass(order=True)   # <, > で比較可能
+class Score:
+    value: int
+    name: str</div>
+<h3>field() でデフォルト値を制御</h3>
+<div class="hl">from dataclasses import dataclass, field
+
+@dataclass
+class Student:
+    name: str
+    grades: list[int] = field(default_factory=list)
+    active: bool = True</div>
+<div class="tip">dataclass は設定クラス・データ転送オブジェクト（DTO）・イミュータブルな値オブジェクトに最適です。</div>
+    `,
+    code: `from dataclasses import dataclass, field
+from typing import Optional
+
+@dataclass
+class Point:
+    x: float
+    y: float
+
+    def distance_to(self, other: "Point") -> float:
+        return ((self.x - other.x)**2 + (self.y - other.y)**2) ** 0.5
+
+p1 = Point(0, 0)
+p2 = Point(3, 4)
+print(p1)
+print(p2)
+print(f"距離: {p1.distance_to(p2)}")
+print(p1 == Point(0, 0))  # True
+
+# frozen=True でイミュータブル
+from dataclasses import dataclass as dc
+
+@dc(frozen=True)
+class Config:
+    host: str
+    port: int = 8080
+    debug: bool = False
+
+cfg = Config("localhost")
+print(cfg)
+
+# field で可変デフォルト値
+@dataclass
+class Team:
+    name: str
+    members: list[str] = field(default_factory=list)
+
+    def add(self, member: str) -> None:
+        self.members.append(member)
+
+t = Team("Aチーム")
+t.add("太郎")
+t.add("花子")
+print(t)`,
+    quiz: {
+      q: "@dataclass が自動生成するメソッドはどれ？",
+      opts: ["__hash__のみ", "__init__, __repr__, __eq__", "__str__のみ", "すべてのメソッド"],
+      ans: 1,
+      explanation: "正解！ @dataclass はデフォルトで __init__, __repr__, __eq__ を自動生成します。frozen=True にすると __hash__ も生成されます。"
+    }
+  },
+
+  // ===== 3. プロトコル =====
+  {
+    chapter: "型システム",
+    title: "Protocol と抽象クラス",
+    icon: "📜", level: "上級",
+    content: `
+<h2>インターフェースを定義する</h2>
+<p>Pythonには2種類のインターフェース定義方法があります。</p>
+<h3>抽象クラス（ABC）</h3>
+<div class="hl">from abc import ABC, abstractmethod
+
+class Shape(ABC):
+    @abstractmethod
+    def area(self) -> float: ...  # 実装を強制
+
+    @abstractmethod
+    def perimeter(self) -> float: ...
+
+class Circle(Shape):
+    def __init__(self, r: float):
+        self.r = r
+    def area(self) -> float:
+        return 3.14159 * self.r ** 2
+    def perimeter(self) -> float:
+        return 2 * 3.14159 * self.r</div>
+<h3>Protocol（構造的部分型）</h3>
+<div class="hl">from typing import Protocol
+
+class Drawable(Protocol):
+    def draw(self) -> str: ...
+
+# 継承しなくても draw() を持つクラスはすべて Drawable
+class Circle:
+    def draw(self) -> str:
+        return "○"
+
+def render(obj: Drawable) -> None:
+    print(obj.draw())</div>
+<div class="tip">ABC は「継承して使う」、Protocol は「メソッドの形が合えばOK（ダックタイピング）」です。Protocol の方が柔軟です。</div>
+<div class="warn">ABC のサブクラスで @abstractmethod を実装しないとインスタンス化時に TypeError になります。</div>
+    `,
+    code: `from abc import ABC, abstractmethod
+import math
+
+class Shape(ABC):
+    @abstractmethod
+    def area(self) -> float: ...
+
+    @abstractmethod
+    def perimeter(self) -> float: ...
+
+    def describe(self) -> str:
+        return (f"{type(self).__name__}: "
+                f"面積={self.area():.2f}, 周囲={self.perimeter():.2f}")
+
+class Circle(Shape):
+    def __init__(self, radius: float):
+        self.radius = radius
+
+    def area(self) -> float:
+        return math.pi * self.radius ** 2
+
+    def perimeter(self) -> float:
+        return 2 * math.pi * self.radius
+
+class Rectangle(Shape):
+    def __init__(self, w: float, h: float):
+        self.w, self.h = w, h
+
+    def area(self) -> float:
+        return self.w * self.h
+
+    def perimeter(self) -> float:
+        return 2 * (self.w + self.h)
+
+shapes: list[Shape] = [Circle(5), Rectangle(4, 6), Circle(3)]
+for s in shapes:
+    print(s.describe())
+
+# ABCは直接インスタンス化できないことを確認
+try:
+    s = Shape()
+except TypeError as e:
+    print(f"\n✅ 期待通りのエラー: {e}")`,
+    quiz: {
+      q: "@abstractmethod の役割は？",
+      opts: [
+        "メソッドを非公開にする",
+        "サブクラスに実装を強制する",
+        "メソッドを削除する",
+        "staticmethodにする"
+      ],
+      ans: 1,
+      explanation: "正解！ @abstractmethod を付けると、サブクラスはそのメソッドを必ず実装しなければなりません。実装しないとインスタンス化でエラーになります。"
+    }
+  },
+
+  // ===== 4. __dunder__ メソッド =====
+  {
+    chapter: "マジックメソッド",
+    title: "特殊メソッド（Dunder）",
+    icon: "✨", level: "上級",
+    content: `
+<h2>クラスを演算子に対応させる（特殊メソッド）</h2>
+<p><strong>ダンダーメソッド</strong>（__method__）を定義すると、組み込み演算子や関数にクラスを対応させられます。</p>
+<h3>主な特殊メソッド</h3>
+<div class="hl">__init__    オブジェクト初期化
+__repr__    repr() / デバッグ表示
+__str__     str() / print()
+__len__     len()
+__getitem__ obj[key]
+__setitem__ obj[key] = value
+__iter__    for x in obj
+__next__    next(obj)
+__add__     +
+__mul__     *
+__lt__      &lt;
+__eq__      ==
+__contains__ in 演算子
+__call__    obj() で呼び出し可能</div>
+<h3>例：ベクトルクラス</h3>
+<div class="hl">class Vector:
+    def __init__(self, x, y):
+        self.x, self.y = x, y
+    def __add__(self, other):
+        return Vector(self.x+other.x, self.y+other.y)
+    def __mul__(self, scalar):
+        return Vector(self.x*scalar, self.y*scalar)
+    def __repr__(self):
+        return f"Vector({self.x}, {self.y})"</div>
+<div class="tip">特殊メソッドはPythonの「プロトコル」です。実装することで標準の演算子・関数・構文が使えるようになります。</div>
+    `,
+    code: `class Vector:
+    def __init__(self, x: float, y: float):
+        self.x, self.y = x, y
+
+    def __repr__(self) -> str:
+        return f"Vector({self.x}, {self.y})"
+
+    def __add__(self, other: "Vector") -> "Vector":
+        return Vector(self.x + other.x, self.y + other.y)
+
+    def __sub__(self, other: "Vector") -> "Vector":
+        return Vector(self.x - other.x, self.y - other.y)
+
+    def __mul__(self, scalar: float) -> "Vector":
+        return Vector(self.x * scalar, self.y * scalar)
+
+    def __abs__(self) -> float:
+        return (self.x**2 + self.y**2) ** 0.5
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Vector):
+            return False
+        return self.x == other.x and self.y == other.y
+
+    def __iter__(self):
+        yield self.x
+        yield self.y
+
+v1 = Vector(3, 4)
+v2 = Vector(1, 2)
+
+print(v1 + v2)
+print(v1 - v2)
+print(v1 * 3)
+print(abs(v1))       # √(9+16) = 5.0
+print(v1 == Vector(3, 4))
+x, y = v1            # __iter__ でアンパック
+print(f"x={x}, y={y}")`,
+    quiz: {
+      q: "len(obj) を呼んだとき実行される特殊メソッドはどれ？",
+      opts: ["__size__", "__length__", "__len__", "__count__"],
+      ans: 2,
+      explanation: "正解！ __len__ を定義すると len() 関数に対応できます。リストや辞書も内部的に __len__ を持っています。"
+    }
+  },
+
+  // ===== 5. コンテキストマネージャ =====
+  {
+    chapter: "マジックメソッド",
+    title: "コンテキストマネージャ",
+    icon: "🔒", level: "上級",
+    content: `
+<h2>with 文を自作する（コンテキストマネージャ）</h2>
+<p><code>with</code> 文は「処理の前後に決まった操作」を行うときに使います。<strong>__enter__</strong> と <strong>__exit__</strong> を実装することで自作できます。</p>
+<h3>クラスで実装</h3>
+<div class="hl">class Timer:
+    def __enter__(self):
+        import time
+        self.start = time.time()
+        return self          # as 変数に渡される値
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        elapsed = time.time() - self.start
+        print(f"経過時間: {elapsed:.4f}秒")
+        return False  # 例外を再送出する
+
+with Timer() as t:
+    # 計測したい処理
+    sum(range(1000000))</div>
+<h3>contextlib で簡単に作る</h3>
+<div class="hl">from contextlib import contextmanager
+
+@contextmanager
+def managed_resource(name: str):
+    print(f"{name} オープン")
+    try:
+        yield name          # with ブロックに渡す
+    finally:
+        print(f"{name} クローズ")</div>
+<div class="tip">コンテキストマネージャはファイルのopen/close、DBのトランザクション、タイマー、ロックの取得/解放などに多用されます。</div>
+    `,
+    code: `import time
+from contextlib import contextmanager
+
+# クラスで実装
+class Timer:
+    def __init__(self, label="処理"):
+        self.label = label
+
+    def __enter__(self):
+        self._start = time.time()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        elapsed = time.time() - self._start
+        print(f"⏱ {self.label}: {elapsed:.4f}秒")
+        return False  # 例外を伝播させる
+
+with Timer("合計計算"):
+    result = sum(range(500000))
+    print(f"結果: {result}")
+
+# contextmanager デコレータで実装
+@contextmanager
+def indent(label: str, level: int = 1):
+    pad = "  " * level
+    print(f"{pad}=== {label} 開始 ===")
+    try:
+        yield pad
+    except Exception as e:
+        print(f"{pad}❌ エラー: {e}")
+        raise
+    finally:
+        print(f"{pad}=== {label} 終了 ===")
+
+with indent("タスクA", 1) as p:
+    print(f"{p}処理中...")
+    with indent("サブタスク", 2) as p2:
+        print(f"{p2}内側の処理")`,
+    quiz: {
+      q: "with 文開始時に呼ばれる特殊メソッドはどれ？",
+      opts: ["__open__", "__start__", "__enter__", "__with__"],
+      ans: 2,
+      explanation: "正解！ __enter__ が with ブロック開始時に、__exit__ が終了時（正常・例外問わず）に呼ばれます。"
+    }
+  },
+
+  // ===== 6. イテレータプロトコル =====
+  {
+    chapter: "イテレータ",
+    title: "イテレータプロトコル",
+    icon: "🔁", level: "上級",
+    content: `
+<h2>イテレータを自作する</h2>
+<p><strong>__iter__</strong> と <strong>__next__</strong> を実装することで、for 文で使えるオブジェクトを作れます。</p>
+<h3>イテレータの仕組み</h3>
+<div class="hl">class CountDown:
+    def __init__(self, start: int):
+        self.current = start
+
+    def __iter__(self):
+        return self   # 自分自身を返す
+
+    def __next__(self):
+        if self.current <= 0:
+            raise StopIteration  # ループ終了
+        val = self.current
+        self.current -= 1
+        return val
+
+for n in CountDown(5):
+    print(n)  # 5 4 3 2 1</div>
+<h3>itertools モジュール</h3>
+<div class="hl">import itertools
+
+# 無限カウンター
+counter = itertools.count(start=1, step=2)
+# chain: 複数イテラブルを連結
+chained = itertools.chain([1,2], [3,4], [5])
+# islice: 先頭N件取得
+first5 = itertools.islice(counter, 5)
+# groupby: グループ化
+groups = itertools.groupby([1,1,2,2,3])</div>
+<div class="tip">for 文は内部で iter() → loop で next() → StopIteration で終了という仕組みで動いています。これがイテレータプロトコルです。</div>
+    `,
+    code: `import itertools
+
+# カスタムイテレータ
+class Range2D:
+    """2次元のrange（行×列をループ）"""
+    def __init__(self, rows: int, cols: int):
+        self.rows = rows
+        self.cols = cols
+        self.r = self.c = 0
+
+    def __iter__(self):
+        self.r = self.c = 0
+        return self
+
+    def __next__(self):
+        if self.r >= self.rows:
+            raise StopIteration
+        val = (self.r, self.c)
+        self.c += 1
+        if self.c >= self.cols:
+            self.c = 0
+            self.r += 1
+        return val
+
+print("=== 2×3グリッド ===")
+for pos in Range2D(2, 3):
+    print(pos)
+
+# itertools の活用
+print("\n=== itertools.chain ===")
+combined = list(itertools.chain("ABC", [1, 2, 3], (True, False)))
+print(combined)
+
+print("\n=== itertools.groupby ===")
+data = sorted(["apple", "avocado", "banana", "blueberry", "cherry"], key=lambda x: x[0])
+for key, group in itertools.groupby(data, key=lambda x: x[0]):
+    print(f"  {key}: {list(group)}")
+
+print("\n=== itertools.islice（フィボナッチ先頭10） ===")
+def fib():
+    a, b = 0, 1
+    while True:
+        yield a
+        a, b = b, a + b
+
+print(list(itertools.islice(fib(), 10)))`,
+    quiz: {
+      q: "イテレータがループ終了を知らせるには？",
+      opts: ["return None", "yield False", "raise StopIteration", "return StopIteration"],
+      ans: 2,
+      explanation: "正解！ __next__ 内で raise StopIteration を発生させると for ループが終了します。"
+    }
+  },
+
+  // ===== 7. functools =====
+  {
+    chapter: "関数型プログラミング",
+    title: "functools",
+    icon: "⚙️", level: "上級",
+    content: `
+<h2>functools で関数を強化する</h2>
+<p><code>functools</code> は高階関数・関数変換ユーティリティを提供する標準ライブラリです。</p>
+<h3>lru_cache：メモ化（キャッシュ）</h3>
+<div class="hl">from functools import lru_cache
+
+@lru_cache(maxsize=None)
+def fib(n: int) -> int:
+    if n < 2:
+        return n
+    return fib(n-1) + fib(n-2)
+
+# 同じ引数は2回計算しない</div>
+<h3>partial：引数を固定した新関数</h3>
+<div class="hl">from functools import partial
+
+def power(base, exp):
+    return base ** exp
+
+square = partial(power, exp=2)
+cube   = partial(power, exp=3)
+print(square(5))  # 25
+print(cube(3))    # 27</div>
+<h3>reduce：畳み込み</h3>
+<div class="hl">from functools import reduce
+
+product = reduce(lambda acc, x: acc * x, [1,2,3,4,5])
+# ((((1×2)×3)×4)×5) = 120</div>
+<h3>total_ordering：比較演算子の自動生成</h3>
+<div class="hl">from functools import total_ordering
+
+@total_ordering
+class Card:
+    ...  # __eq__ と __lt__ だけ実装すれば
+         # >, <=, >= も自動的に使えるようになる</div>
+    `,
+    code: `from functools import lru_cache, partial, reduce, wraps
+import time
+
+# lru_cache でフィボナッチを高速化
+@lru_cache(maxsize=128)
+def fib(n: int) -> int:
+    if n < 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+start = time.time()
+print(f"fib(35) = {fib(35)}")
+print(f"計算時間: {time.time()-start:.4f}秒")
+print(f"キャッシュ情報: {fib.cache_info()}")
+
+# partial
+def log(level: str, message: str) -> str:
+    return f"[{level}] {message}"
+
+info  = partial(log, "INFO")
+warn  = partial(log, "WARN")
+error = partial(log, "ERROR")
+
+for fn, msg in [(info, "起動完了"), (warn, "メモリ使用率高"), (error, "接続失敗")]:
+    print(fn(msg))
+
+# reduce
+nums = [1, 2, 3, 4, 5, 6]
+total    = reduce(lambda a, x: a + x, nums)
+product  = reduce(lambda a, x: a * x, nums)
+max_val  = reduce(lambda a, x: a if a > x else x, nums)
+print(f"\n合計={total}, 積={product}, 最大={max_val}")`,
+    quiz: {
+      q: "@lru_cache の主な効果はどれ？",
+      opts: ["コードを圧縮する", "同じ引数の呼び出し結果をキャッシュして再計算を省く", "関数を並列実行する", "メモリを解放する"],
+      ans: 1,
+      explanation: "正解！ lru_cache はメモ化（memoization）を実装します。同じ引数で呼ばれたときはキャッシュから返すため、再帰など重い処理が劇的に高速化されます。"
+    }
+  },
+
+  // ===== 8. 非同期処理 =====
+  {
+    chapter: "非同期処理",
+    title: "async / await 基礎",
+    icon: "⚡", level: "上級",
+    content: `
+<h2>非同期処理（async / await）</h2>
+<p>I/O待ちの間に別の処理を進める<strong>非同期処理</strong>は、ネットワーク・ファイルI/Oで大きな性能向上をもたらします。</p>
+<h3>コルーチンの定義</h3>
+<div class="hl">import asyncio
+
+async def fetch(url: str) -> str:
+    await asyncio.sleep(1)  # I/O待ちをシミュレート
+    return f"Response from {url}"
+
+# 実行
+asyncio.run(fetch("http://example.com"))</div>
+<h3>並列実行（gather）</h3>
+<div class="hl">async def main():
+    # 3つのタスクを並列実行
+    results = await asyncio.gather(
+        fetch("url1"),
+        fetch("url2"),
+        fetch("url3"),
+    )
+    return results</div>
+<h3>同期 vs 非同期</h3>
+<div class="hl">同期（逐次）: 1秒×3 = 3秒
+非同期（並列）: max(1秒,1秒,1秒) ≈ 1秒</div>
+<div class="tip">async/await はCPUバウンドな処理（計算）ではなくI/Oバウンドな処理（通信・ファイル読み書き）で効果を発揮します。</div>
+<div class="warn">Pyodideの環境ではasyncio.run()の代わりにawaitを直接使います。右のコードを参考にしてください。</div>
+    `,
+    code: `import asyncio
+import time
+
+# コルーチン（async def）
+async def fetch_data(name: str, delay: float) -> dict:
+    print(f"  ▶ {name} 開始...")
+    await asyncio.sleep(delay)   # I/O 待機をシミュレート
+    print(f"  ✅ {name} 完了")
+    return {"name": name, "data": f"{name}_result"}
+
+# 逐次実行
+async def sequential():
+    start = time.time()
+    r1 = await fetch_data("DB クエリ", 0.3)
+    r2 = await fetch_data("API 呼び出し", 0.3)
+    r3 = await fetch_data("ファイル読込", 0.3)
+    elapsed = time.time() - start
+    print(f"逐次: {elapsed:.2f}秒\n")
+
+# 並列実行
+async def parallel():
+    start = time.time()
+    results = await asyncio.gather(
+        fetch_data("DB クエリ", 0.3),
+        fetch_data("API 呼び出し", 0.3),
+        fetch_data("ファイル読込", 0.3),
+    )
+    elapsed = time.time() - start
+    print(f"並列: {elapsed:.2f}秒")
+    return results
+
+print("=== 逐次実行 ===")
+await sequential()
+print("=== 並列実行 ===")
+results = await parallel()
+for r in results:
+    print(f"  {r}")`,
+    quiz: {
+      q: "asyncio.gather() の目的はどれ？",
+      opts: [
+        "コルーチンを逐次実行する",
+        "複数のコルーチンを並列実行してすべての結果を待つ",
+        "例外を無視する",
+        "スレッドを作成する"
+      ],
+      ans: 1,
+      explanation: "正解！ asyncio.gather() は複数のコルーチンを並列実行し、すべてが完了したら結果をリストで返します。"
+    }
+  },
+
+  // ===== 9. 正規表現 =====
+  {
+    chapter: "文字列処理",
+    title: "正規表現（re）",
+    icon: "🔍", level: "上級",
+    content: `
+<h2>パターンで文字列を扱う（正規表現）</h2>
+<p>正規表現は<strong>文字列のパターンマッチング・抽出・置換</strong>のための強力な仕組みです。</p>
+<h3>主なパターン記号</h3>
+<div class="hl">.     任意の1文字
+*     0回以上の繰り返し
++     1回以上の繰り返し
+?     0または1回
+^     行の先頭
+$     行の末尾
+\d    数字（[0-9]）
+\w    英数字とアンダースコア
+\s    空白文字
+[abc] a,b,cのどれか
+(...)  グループ</div>
+<h3>主な関数</h3>
+<div class="hl">import re
+re.match(pattern, str)   # 先頭からマッチ
+re.search(pattern, str)  # 最初のマッチを検索
+re.findall(pattern, str) # 全マッチをリストで取得
+re.sub(pattern, repl, str) # 置換
+re.split(pattern, str)   # 分割</div>
+<h3>名前付きグループ</h3>
+<div class="hl">pattern = r"(?P&lt;year&gt;\d{4})-(?P&lt;month&gt;\d{2})"
+m = re.search(pattern, "2024-03-15")
+print(m.group("year"))   # 2024
+print(m.group("month"))  # 03</div>
+<div class="tip">raw文字列 r"..." を使うことでバックスラッシュのエスケープを気にせず書けます。</div>
+    `,
+    code: `import re
+
+text = """
+お問い合わせ:
+  山田 太郎 <yamada@example.com>
+  電話: 090-1234-5678
+  誕生日: 1990-03-15
+  郵便番号: 123-4567
+"""
+
+# メールアドレスを抽出
+emails = re.findall(r'\b[\w.+-]+@[\w-]+\.\w+\b', text)
+print("メール:", emails)
+
+# 電話番号を抽出
+phones = re.findall(r'\d{2,4}-\d{2,4}-\d{4}', text)
+print("電話:", phones)
+
+# 日付を名前付きグループで抽出
+date_pattern = r'(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})'
+m = re.search(date_pattern, text)
+if m:
+    print(f"日付: {m.group('year')}年{m.group('month')}月{m.group('day')}日")
+
+# 置換：郵便番号をマスク
+masked = re.sub(r'\d{3}-\d{4}', '***-****', text)
+print("\nマスク後:")
+print(masked.strip())`,
+    quiz: {
+      q: 're.findall(r"\\d+", "abc123def456") の結果は？',
+      opts: ['["123", "456"]', '["123"]', '[123, 456]', '"123456"'],
+      ans: 0,
+      explanation: 'correct! \\d+ は1文字以上の数字にマッチします。findall はすべてのマッチを文字列リストで返すので ["123", "456"] になります。'
+    }
+  },
+
+  // ===== 10. descriptor/property =====
+  {
+    chapter: "クラス高度",
+    title: "property と descriptor",
+    icon: "🔧", level: "上級",
+    content: `
+<h2>属性アクセスを制御する（property / descriptor）</h2>
+<p>属性の取得・設定・削除に処理を挟む仕組みです。</p>
+<h3>@property</h3>
+<div class="hl">class Temperature:
+    def __init__(self, celsius: float):
+        self._celsius = celsius
+
+    @property
+    def celsius(self) -> float:
+        return self._celsius
+
+    @celsius.setter
+    def celsius(self, value: float):
+        if value < -273.15:
+            raise ValueError("絶対零度以下は不可")
+        self._celsius = value
+
+    @property
+    def fahrenheit(self) -> float:
+        return self._celsius * 9/5 + 32</div>
+<h3>__slots__ でメモリ最適化</h3>
+<div class="hl">class Point:
+    __slots__ = ("x", "y")  # 辞書の代わりに固定属性
+    def __init__(self, x, y):
+        self.x, self.y = x, y</div>
+<h3>classmethod と staticmethod</h3>
+<div class="hl">class Date:
+    @classmethod
+    def from_string(cls, s: str) -> "Date":
+        # cls はクラス自身
+        y, m, d = s.split("-")
+        return cls(int(y), int(m), int(d))
+
+    @staticmethod
+    def is_leap(year: int) -> bool:
+        return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)</div>
+    `,
+    code: `class Temperature:
+    def __init__(self, celsius: float = 0.0):
+        self.celsius = celsius  # setter経由で検証
+
+    @property
+    def celsius(self) -> float:
+        return self._celsius
+
+    @celsius.setter
+    def celsius(self, value: float) -> None:
+        if value < -273.15:
+            raise ValueError(f"絶対零度以下は不可: {value}°C")
+        self._celsius = value
+
+    @property
+    def fahrenheit(self) -> float:
+        return self._celsius * 9 / 5 + 32
+
+    @property
+    def kelvin(self) -> float:
+        return self._celsius + 273.15
+
+    def __repr__(self) -> str:
+        return f"{self._celsius:.1f}°C"
+
+t = Temperature(100)
+print(f"{t} = {t.fahrenheit:.1f}°F = {t.kelvin:.2f}K")
+t.celsius = -40
+print(f"{t} = {t.fahrenheit:.1f}°F")
+
+try:
+    t.celsius = -300
+except ValueError as e:
+    print(f"❌ {e}")
+
+# classmethod と staticmethod
+class Circle:
+    PI = 3.14159
+
+    def __init__(self, radius: float):
+        self.radius = radius
+
+    @classmethod
+    def unit(cls) -> "Circle":
+        return cls(1.0)
+
+    @staticmethod
+    def area_from_radius(r: float) -> float:
+        return 3.14159 * r ** 2
+
+    def area(self) -> float:
+        return Circle.area_from_radius(self.radius)
+
+c = Circle.unit()
+print(f"\n単位円: 面積={c.area():.4f}")
+print(f"半径5の面積: {Circle.area_from_radius(5):.2f}")`,
+    quiz: {
+      q: "@classmethod の第1引数の慣例名は？",
+      opts: ["self", "cls", "klass", "this"],
+      ans: 1,
+      explanation: "正解！ classmethodの第1引数はクラス自身で、慣例的に cls と書きます。selfとは異なりインスタンスではなくクラスが渡されます。"
+    }
+  },
+
+  // ===== 11. メタクラス =====
+  {
+    chapter: "クラス高度",
+    title: "メタクラスと __init_subclass__",
+    icon: "🧠", level: "上級+",
+    content: `
+<h2>クラスを生成するクラス（メタクラス）</h2>
+<p>Pythonでは<strong>クラス自体もオブジェクト</strong>です。クラスを生成する「クラスのクラス」をメタクラスといいます。</p>
+<h3>メタクラスの基本</h3>
+<div class="hl">class SingletonMeta(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+class Config(metaclass=SingletonMeta):
+    def __init__(self, value: int):
+        self.value = value
+
+a = Config(1)
+b = Config(2)
+print(a is b)  # True（同じインスタンス）</div>
+<h3>__init_subclass__（よりシンプル）</h3>
+<div class="hl">class Plugin:
+    registry = []
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        Plugin.registry.append(cls)  # 自動登録
+
+class AudioPlugin(Plugin): pass
+class VideoPlugin(Plugin): pass
+
+print(Plugin.registry)  # [AudioPlugin, VideoPlugin]</div>
+<div class="tip">__init_subclass__ はメタクラスより簡単にサブクラスの自動登録・バリデーションができます。フレームワーク設計でよく使われます。</div>
+    `,
+    code: `# シングルトンパターン（メタクラスで実装）
+class SingletonMeta(type):
+    _instances: dict = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in SingletonMeta._instances:
+            SingletonMeta._instances[cls] = super().__call__(*args, **kwargs)
+        return SingletonMeta._instances[cls]
+
+class AppConfig(metaclass=SingletonMeta):
+    def __init__(self, debug: bool = False):
+        self.debug = debug
+        self.settings: dict = {}
+
+cfg1 = AppConfig(debug=True)
+cfg2 = AppConfig(debug=False)
+print(f"同じインスタンス: {cfg1 is cfg2}")  # True
+print(f"debug={cfg1.debug}")
+
+# __init_subclass__ でプラグイン自動登録
+class Command:
+    registry: dict[str, type] = {}
+
+    def __init_subclass__(cls, name: str = "", **kwargs):
+        super().__init_subclass__(**kwargs)
+        if name:
+            Command.registry[name] = cls
+
+    def execute(self) -> str:
+        raise NotImplementedError
+
+class HelloCommand(Command, name="hello"):
+    def execute(self) -> str:
+        return "Hello, World!"
+
+class QuitCommand(Command, name="quit"):
+    def execute(self) -> str:
+        return "Goodbye!"
+
+print("\n=== コマンド一覧 ===")
+for name, cls in Command.registry.items():
+    result = cls().execute()
+    print(f"  {name}: {result}")`,
+    quiz: {
+      q: "メタクラスとは何か？",
+      opts: ["クラスの親クラス", "クラスを生成するクラス（クラスのクラス）", "抽象クラスの別名", "デコレータの一種"],
+      ans: 1,
+      explanation: "正解！ メタクラスは「クラスを作るためのクラス」です。Pythonではデフォルトのメタクラスは type です。type(int) → <class 'type'>"
+    }
+  },
+
+  // ===== 12. パターンマッチング =====
+  {
+    chapter: "モダンPython",
+    title: "構造的パターンマッチング",
+    icon: "🎯", level: "上級",
+    content: `
+<h2>match / case（Python 3.10+）</h2>
+<p>Python 3.10 で追加された<strong>構造的パターンマッチング</strong>は、値・型・構造を同時に分解・マッチできます。</p>
+<h3>基本の match</h3>
+<div class="hl">def http_status(status: int) -> str:
+    match status:
+        case 200:
+            return "OK"
+        case 404:
+            return "Not Found"
+        case 500 | 503:
+            return "Server Error"
+        case _:          # デフォルト
+            return "Unknown"</div>
+<h3>型と構造のマッチ</h3>
+<div class="hl">def process(command):
+    match command:
+        case {"action": "buy", "item": item, "qty": qty}:
+            return f"{item} を {qty} 個購入"
+        case {"action": "sell", "item": item}:
+            return f"{item} を売却"
+        case [first, *rest]:
+            return f"リスト: 先頭={first}, 残り={rest}"
+        case str() as s:
+            return f"文字列: {s}"</div>
+<h3>dataclass とのマッチ</h3>
+<div class="hl">match point:
+    case Point(x=0, y=0):
+        print("原点")
+    case Point(x=0, y=y):
+        print(f"Y軸上: y={y}")
+    case Point(x=x, y=y):
+        print(f"({x}, {y})")</div>
+    `,
+    code: `from dataclasses import dataclass
+
+# HTTPレスポンス処理
+def handle_response(status: int, body: str = "") -> str:
+    match status:
+        case 200:
+            return f"✅ 成功: {body}"
+        case 201:
+            return f"✅ 作成完了: {body}"
+        case 400:
+            return f"❌ 不正なリクエスト"
+        case 401 | 403:
+            return f"🔒 認証/認可エラー"
+        case 404:
+            return f"🔍 見つかりません"
+        case code if 500 <= code < 600:
+            return f"💥 サーバーエラー: {code}"
+        case _:
+            return f"❓ 不明: {status}"
+
+for code in [200, 201, 404, 401, 500, 503, 418]:
+    print(handle_response(code, "data"))
+
+# コマンドパーサ（辞書のマッチ）
+def parse_command(cmd: dict) -> str:
+    match cmd:
+        case {"op": "add", "a": a, "b": b}:
+            return f"{a} + {b} = {a + b}"
+        case {"op": "mul", "a": a, "b": b}:
+            return f"{a} × {b} = {a * b}"
+        case {"op": op}:
+            return f"未知の演算: {op}"
+        case _:
+            return "無効なコマンド"
+
+print()
+for cmd in [
+    {"op": "add", "a": 10, "b": 3},
+    {"op": "mul", "a": 7, "b": 6},
+    {"op": "div", "a": 8, "b": 2},
+]:
+    print(parse_command(cmd))`,
+    quiz: {
+      q: "match/case でデフォルトケース（どれにも当てはまらない場合）を書くには？",
+      opts: ["case None:", "case default:", "case _:", "case else:"],
+      ans: 2,
+      explanation: "正解！ case _: はワイルドカードパターンで、どのケースにも一致しなかった場合に実行されます。"
+    }
+  },
+
+  // ===== 13. 総合演習 =====
+  {
+    chapter: "総合演習",
+    title: "ミニORMを設計する",
+    icon: "🏆", level: "上級+",
+    content: `
+<h2>総合演習：ミニORMを設計する</h2>
+<p>ここまでの上級知識を総動員して、簡易的なORM（オブジェクト関係マッパー）を設計します。</p>
+<h3>使用する技術</h3>
+<div class="hl">✅ dataclass
+✅ 型ヒント
+✅ __init_subclass__（自動登録）
+✅ property / descriptor
+✅ 特殊メソッド（__repr__, __iter__等）
+✅ 内包表記
+✅ 例外処理</div>
+<h3>次のステップ</h3>
+<div class="hl">🔹 SQLite / PostgreSQL（実DB連携）
+🔹 asyncio + aiohttp（非同期HTTP）
+🔹 FastAPI（型ヒント駆動API）
+🔹 Pydantic（バリデーション）
+🔹 mypy（静的型チェック）
+🔹 pytest（テスト設計）
+🔹 Docker（環境構築）</div>
+<div class="tip">上級編お疲れ様でした！ここまでマスターすれば、Pythonのほぼすべての機能を理解していることになります。</div>
+<div class="challenge">右のコードを読み解いて、新しいモデル（例：Product）を追加してみよう。</div>
+    `,
+    code: `from dataclasses import dataclass, field
+from typing import Any, Optional, ClassVar
+
+# ===== フィールド定義 =====
+class Field:
+    def __init__(self, type_: type, required: bool = True):
+        self.type_ = type_
+        self.required = required
+        self.name: str = ""
+
+    def __set_name__(self, owner, name: str):
+        self.name = name
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self
+        return obj.__dict__.get(f"_{self.name}")
+
+    def __set__(self, obj, value):
+        if value is None and self.required:
+            raise ValueError(f"{self.name} は必須です")
+        if value is not None and not isinstance(value, self.type_):
+            raise TypeError(f"{self.name}: {self.type_.__name__} が必要です")
+        obj.__dict__[f"_{self.name}"] = value
+
+# ===== ミニORM =====
+class ModelMeta(type):
+    def __new__(mcs, name, bases, namespace):
+        fields = {k: v for k, v in namespace.items() if isinstance(v, Field)}
+        cls = super().__new__(mcs, name, bases, namespace)
+        cls._fields = fields
+        cls._table: list = []
+        return cls
+
+class Model(metaclass=ModelMeta):
+    _id_counter: ClassVar[int] = 0
+
+    def __init__(self, **kwargs):
+        type(self)._id_counter += 1
+        self.id = type(self)._id_counter
+        for name, field_obj in type(self)._fields.items():
+            setattr(self, name, kwargs.get(name))
+
+    def __repr__(self) -> str:
+        vals = ", ".join(f"{n}={getattr(self, n)!r}" for n in type(self)._fields)
+        return f"{type(self).__name__}(id={self.id}, {vals})"
+
+    def save(self):
+        type(self)._table.append(self)
+        return self
+
+    @classmethod
+    def all(cls) -> list:
+        return list(cls._table)
+
+    @classmethod
+    def filter(cls, **kwargs) -> list:
+        return [r for r in cls._table
+                if all(getattr(r, k) == v for k, v in kwargs.items())]
+
+# ===== モデル定義 =====
+class User(Model):
+    name  = Field(str)
+    email = Field(str)
+    age   = Field(int, required=False)
+
+class Post(Model):
+    title   = Field(str)
+    content = Field(str)
+
+# ===== 使ってみる =====
+User(name="太郎", email="taro@example.com", age=25).save()
+User(name="花子", email="hanako@example.com", age=30).save()
+User(name="次郎", email="jiro@example.com").save()
+Post(title="Python入門", content="Pythonは楽しい！").save()
+Post(title="上級編", content="メタクラスを学ぼう").save()
+
+print("=== 全ユーザー ===")
+for u in User.all():
+    print(" ", u)
+
+print("\n=== 年齢フィルタ(25) ===")
+for u in User.filter(age=25):
+    print(" ", u)
+
+print("\n=== 全投稿 ===")
+for p in Post.all():
+    print(" ", p)
+
+# バリデーション確認
+print("\n=== バリデーション ===")
+try:
+    User(name=123, email="x@x.com").save()
+except TypeError as e:
+    print(f"❌ {e}")`,
+    quiz: {
+      q: "上級Pythonを学んでどう活かす？",
+      opts: ["FastAPI でAPIを作る", "非同期スクレイピングに挑戦", "独自フレームワークを書く", "全部やる！"],
+      ans: 3,
+      explanation: "最高の答え！🔥 上級編完全制覇おめでとうございます！ここまでの知識でPythonの本番開発に十分対応できます。"
+    }
+  }
+];
+
+// ==================== APP STATE ====================
+let currentLesson = 0;
+let points = 0;
+let completed = new Set();
+let quizAnswered = false;
+
+function init() {
+  renderSidebar();
+  loadLesson(0);
+}
+
+function renderSidebar() {
+  const list = document.getElementById('lesson-list');
+  list.innerHTML = '';
+  let lastChapter = '';
+  lessons.forEach((lesson, i) => {
+    if (lesson.chapter !== lastChapter) {
+      const ch = document.createElement('div');
+      ch.className = 'chapter';
+      ch.textContent = lesson.chapter;
+      list.appendChild(ch);
+      lastChapter = lesson.chapter;
+    }
+    const btn = document.createElement('button');
+    btn.className = 'lesson-btn' + (i === currentLesson ? ' active' : '');
+    btn.innerHTML = `<span class="icon">${lesson.icon}</span>${lesson.title}` +
+      (completed.has(i) ? '<span class="check">✓</span>' : '');
+    btn.onclick = () => loadLesson(i);
+    list.appendChild(btn);
+  });
+}
+
+function loadLesson(idx) {
+  currentLesson = idx;
+  quizAnswered = false;
+  const lesson = lessons[idx];
+  document.getElementById('lesson-title').textContent = lesson.title;
+  document.getElementById('lesson-badge').textContent = `レッスン ${idx + 1} / ${lessons.length}`;
+  document.getElementById('level-badge').textContent = lesson.level;
+  document.getElementById('lesson-content').innerHTML = lesson.content;
+  document.getElementById('code-editor').value = lesson.code;
+  clearOutput();
+
+  const quizArea = document.getElementById('quiz-area');
+  quizArea.style.display = 'block';
+  document.getElementById('quiz-question').textContent = lesson.quiz.q;
+  const optsEl = document.getElementById('quiz-options');
+  optsEl.innerHTML = '';
+  lesson.quiz.opts.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'quiz-opt';
+    btn.textContent = opt;
+    btn.onclick = () => answerQuiz(i, btn);
+    optsEl.appendChild(btn);
+  });
+  document.getElementById('quiz-feedback').style.display = 'none';
+  document.getElementById('prev-btn').disabled = idx === 0;
+  document.getElementById('next-btn').textContent = idx === lessons.length - 1 ? '完了 🎉' : '次へ →';
+  renderSidebar();
+  updateProgress();
+}
+
+function answerQuiz(selected, btnEl) {
+  if (quizAnswered) return;
+  quizAnswered = true;
+  const lesson = lessons[currentLesson];
+  const opts = document.querySelectorAll('.quiz-opt');
+  const fb = document.getElementById('quiz-feedback');
+  opts.forEach(b => b.style.pointerEvents = 'none');
+  opts[lesson.quiz.ans].classList.add('correct');
+  if (selected === lesson.quiz.ans) {
+    btnEl.classList.add('correct');
+    fb.className = 'ok';
+    fb.textContent = '✅ ' + lesson.quiz.explanation;
+    if (!completed.has(currentLesson)) {
+      points += 20;
+      completed.add(currentLesson);
+      document.getElementById('pts-display').textContent = `⭐ ${points} pt`;
+    }
+  } else {
+    btnEl.classList.add('wrong');
+    fb.className = 'ng';
+    fb.textContent = '❌ 惜しい！正解は「' + lesson.quiz.opts[lesson.quiz.ans] + '」。' + lesson.quiz.explanation;
+    completed.add(currentLesson);
+  }
+  fb.style.display = 'block';
+  updateProgress();
+  renderSidebar();
+}
+
+function updateProgress() {
+  const pct = Math.round((completed.size / lessons.length) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+function prevLesson() { if (currentLesson > 0) loadLesson(currentLesson - 1); }
+function nextLesson() {
+  if (currentLesson < lessons.length - 1) {
+    loadLesson(currentLesson + 1);
+  } else {
+    document.getElementById('content-area').innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;text-align:center;padding:40px;">
+        <div style="font-size:80px;margin-bottom:24px;">🔥</div>
+        <h2 style="font-size:28px;margin-bottom:12px;">上級編 完全制覇！</h2>
+        <p style="color:#7a8499;font-size:16px;margin-bottom:8px;">獲得ポイント: ⭐ ${points} pt</p>
+        <p style="color:#7a8499;font-size:15px;margin-top:16px;">型システム・メタクラス・非同期・パターンマッチングまで<br>Pythonの最先端をマスターしました！</p>
+        <div style="display:flex;gap:12px;margin-top:32px;flex-wrap:wrap;justify-content:center;">
+          <button onclick="window.location.href='python_learning.html'" style="padding:11px 22px;background:#1c2033;color:#bec8db;border:1px solid #252a3d;border-radius:8px;font-size:13px;cursor:pointer;">入門編</button>
+          <button onclick="window.location.href='python_learning_2.html'" style="padding:11px 22px;background:#1c2033;color:#bec8db;border:1px solid #252a3d;border-radius:8px;font-size:13px;cursor:pointer;">ステップアップ編</button>
+          <button onclick="loadLesson(0)" style="padding:11px 22px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">最初から復習</button>
+        </div>
+      </div>`;
+    document.getElementById('nav-buttons').style.display = 'none';
+  }
+}
+
+// ==================== CODE EXECUTION ====================
+let pyodide = null;
+
+async function initPyodide() {
+  const btn = document.getElementById('run-btn');
+  btn.textContent = '読込中...';
+  btn.disabled = true;
+  try {
+    pyodide = await loadPyodide();
+    btn.textContent = '▶ 実行';
+    btn.disabled = false;
+  } catch(e) {
+    btn.textContent = '❌ 読込失敗';
+    console.error(e);
+  }
+}
+initPyodide();
+
+async function runCode() {
+  const code = document.getElementById('code-editor').value;
+  const output = document.getElementById('output');
+  output.innerHTML = '';
+  if (!pyodide) {
+    output.innerHTML = '<span class="out-hint">Pythonを読み込み中です。少し待ってから再試行してください。</span>';
+    return;
+  }
+  try {
+    pyodide.globals.set('_user_code', code);
+    const result = await pyodide.runPythonAsync(`
+import sys, io, traceback
+_buf = io.StringIO()
+_err_buf = io.StringIO()
+_old_out, _old_err = sys.stdout, sys.stderr
+sys.stdout, sys.stderr = _buf, _err_buf
+try:
+    exec(_user_code)
+except Exception:
+    print(traceback.format_exc(), file=_err_buf)
+finally:
+    sys.stdout, sys.stderr = _old_out, _old_err
+(_buf.getvalue(), _err_buf.getvalue())
+`);
+    const [stdout, stderr] = result.toJs();
+    if (stdout) {
+      const span = document.createElement('span');
+      span.className = 'out-ok';
+      span.textContent = stdout;
+      output.appendChild(span);
+    }
+    if (stderr) {
+      const span = document.createElement('span');
+      span.className = 'out-err';
+      span.textContent = stderr;
+      output.appendChild(span);
+    }
+  } catch(e) {
+    const span = document.createElement('span');
+    span.className = 'out-err';
+    span.textContent = '⚠️ エラー: ' + e.message;
+    output.appendChild(span);
+  }
+  if (!output.innerHTML) {
+    output.innerHTML = '<span class="out-hint">（出力なし）</span>';
+  }
+}
+
+function resetCode() {
+  document.getElementById('code-editor').value = lessons[currentLesson].code;
+  clearOutput();
+}
+
+function clearOutput() {
+  document.getElementById('output').innerHTML = '<span class="out-hint">▶ 実行ボタンを押して結果を確認しよう</span>';
+}
+
+document.getElementById('code-editor').addEventListener('keydown', function(e) {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = this.selectionStart;
+    this.value = this.value.substring(0, s) + '    ' + this.value.substring(this.selectionEnd);
+    this.selectionStart = this.selectionEnd = s + 4;
+  }
+});
+
+init();
+</script>
+</body>
+</html>
