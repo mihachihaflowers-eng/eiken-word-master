@@ -280,23 +280,23 @@ class Database:
 # ============================================================
 
 def fetch_word_details(word: str) -> dict:
-    """Google翻訳の非公式APIから単語の詳細情報を取得する（urllib標準ライブラリ使用）。"""
+    """Google翻訳 + Free Dictionary API から単語の詳細情報を取得する。"""
+    result: dict = {}
+    ua = {"User-Agent": "Mozilla/5.0"}
+
+    # ── Google翻訳（品詞別の意味）──────────────────────────────
     params = urllib.parse.urlencode([
         ("client", "gtx"), ("sl", "en"), ("tl", "ja"),
-        ("dt", "t"), ("dt", "bd"), ("dt", "ex"), ("q", word),
+        ("dt", "t"), ("dt", "bd"), ("q", word),
     ])
     url = f"https://translate.googleapis.com/translate_a/single?{params}"
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    req = urllib.request.Request(url, headers=ua)
     with urllib.request.urlopen(req, timeout=10) as resp:
         data = json.loads(resp.read().decode("utf-8"))
 
-    result: dict = {}
-
-    # メイン翻訳
     if data[0]:
         result["translation"] = "".join(item[0] for item in data[0] if item[0])
 
-    # 品詞別の意味
     if len(data) > 1 and data[1]:
         pos_entries = []
         for item in data[1]:
@@ -305,18 +305,45 @@ def fetch_word_details(word: str) -> dict:
         if pos_entries:
             result["pos_definitions"] = pos_entries
 
-    # 用例（HTMLタグを除去）
-    if len(data) > 5 and data[5]:
-        examples = []
-        for ex_group in data[5]:
-            if ex_group and len(ex_group) > 1:
-                for ex in ex_group[1][:2]:
-                    if ex and ex[0]:
-                        examples.append(re.sub(r"<[^>]+>", "", ex[0]))
-            if len(examples) >= 4:
+    # ── Free Dictionary API（英語例文）────────────────────────
+    # https://dictionaryapi.dev/ — 無料・認証不要
+    try:
+        dict_url = (
+            "https://api.dictionaryapi.dev/api/v2/entries/en/"
+            + urllib.parse.quote(word.split()[0])   # 連語は先頭語のみ
+        )
+        dict_req = urllib.request.Request(dict_url, headers=ua)
+        with urllib.request.urlopen(dict_req, timeout=10) as dict_resp:
+            dict_data = json.loads(dict_resp.read().decode("utf-8"))
+
+        # 発音記号（テキストがあるものを優先）
+        for entry in dict_data:
+            for ph in entry.get("phonetics", []):
+                text = ph.get("text", "").strip()
+                if text:
+                    result["phonetic"] = text
+                    break
+            if "phonetic" in result:
                 break
-        if examples:
-            result["examples"] = examples
+
+        # 例文
+        sentences: list[str] = []
+        for entry in dict_data:
+            for meaning in entry.get("meanings", []):
+                for defn in meaning.get("definitions", []):
+                    ex = defn.get("example", "")
+                    if ex and ex not in sentences:
+                        sentences.append(ex)
+                    if len(sentences) >= 2:
+                        break
+                if len(sentences) >= 2:
+                    break
+            if len(sentences) >= 2:
+                break
+        if sentences:
+            result["example_sentences"] = sentences
+    except Exception:
+        pass  # 例文取得は任意のため失敗しても続行
 
     return result
 
@@ -336,6 +363,10 @@ def open_detail_popup(parent, word: str, word_id: int, db, colors: dict):
         ctk.CTkLabel(scroll, text=word,
                      font=ctk.CTkFont("Yu Gothic UI", 22, "bold"),
                      text_color=C_TEXT).pack(anchor="w")
+        if "phonetic" in details:
+            ctk.CTkLabel(scroll, text=details["phonetic"],
+                         font=ctk.CTkFont("Yu Gothic UI", 13),
+                         text_color=C_MUTED).pack(anchor="w", pady=(2, 0))
         if "translation" in details:
             ctk.CTkLabel(scroll, text=f"翻訳：{details['translation']}",
                          font=ctk.CTkFont("Yu Gothic UI", 14),
@@ -350,11 +381,11 @@ def open_detail_popup(parent, word: str, word_id: int, db, colors: dict):
                              font=ctk.CTkFont("Yu Gothic UI", 13),
                              text_color=C_TEXT, wraplength=460, justify="left"
                              ).pack(anchor="w", pady=2)
-        if "examples" in details:
-            ctk.CTkLabel(scroll, text="用例",
+        if "example_sentences" in details:
+            ctk.CTkLabel(scroll, text="例文",
                          font=ctk.CTkFont("Yu Gothic UI", 13, "bold"),
                          text_color=C_TEXT).pack(anchor="w", pady=(12, 4))
-            for ex in details["examples"]:
+            for ex in details["example_sentences"]:
                 ctk.CTkLabel(scroll, text=f"• {ex}",
                              font=ctk.CTkFont("Yu Gothic UI", 12),
                              text_color=C_MUTED, wraplength=460, justify="left"
@@ -393,7 +424,7 @@ def open_detail_popup(parent, word: str, word_id: int, db, colors: dict):
         _render(cached)
         return
 
-    status_lbl = ctk.CTkLabel(scroll, text="Google翻訳から情報を取得中...",
+    status_lbl = ctk.CTkLabel(scroll, text="情報を取得中...",
                               font=ctk.CTkFont("Yu Gothic UI", 14),
                               text_color=C_MUTED)
     status_lbl.pack(pady=40)
@@ -1019,9 +1050,9 @@ class QuizFrame(ctk.CTkFrame):
         else:
             self._feedback_lbl.configure(
                 text=f"✗ 不正解　正解：{self.correct_meaning}", text_color=C_DANGER)
-            self._detail_btn.configure(text="さらに詳しく表示", state="normal")
-            self._detail_btn.pack(fill="x", pady=(4, 0))
 
+        self._detail_btn.configure(text="さらに詳しく表示", state="normal")
+        self._detail_btn.pack(fill="x", pady=(4, 0))
         self._next_btn.pack(fill="x", pady=(8, 0))
 
     def _dont_know(self):
